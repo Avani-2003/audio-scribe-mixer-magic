@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AudioMixer from '@/components/AudioMixer';
 import AudioSeparator from '@/components/AudioSeparator';
 import ProjectInfo from '@/components/ProjectInfo';
-import { Waveform, Music, Info } from 'lucide-react';
+import { AudioLines, Music, Info } from 'lucide-react';
 
 const Index = () => {
   return (
@@ -28,7 +28,7 @@ const Index = () => {
               Mixer
             </TabsTrigger>
             <TabsTrigger value="separator" className="flex items-center gap-2">
-              <Waveform className="w-4 h-4" />
+              <AudioLines className="w-4 h-4" />
               Separator
             </TabsTrigger>
             <TabsTrigger value="info" className="flex items-center gap-2">

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator as UISeparator } from '@/components/ui/separator';
-import { Search, Download, Play, Pause, Waveform } from 'lucide-react';
+import { Search, Download, Play, Pause, AudioLines } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface SeparatedAudio {
@@ -201,7 +200,7 @@ const AudioSeparator = () => {
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Waveform className="w-5 h-5" />
+          <AudioLines className="w-5 h-5" />
           Audio Source Separator
         </CardTitle>
       </CardHeader>
