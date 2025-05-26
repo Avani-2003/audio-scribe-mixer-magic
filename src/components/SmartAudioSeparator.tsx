@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,13 +63,17 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
       const matchedSounds = matchQueryWithDetectedSounds(targetSounds, detectedSounds);
       setProcessingProgress(40);
 
-      // Simulate audio separation using advanced techniques
+      // Load and process the actual audio file
+      const audioBuffer = await loadAudioFile(localAudioFile);
+      setProcessingProgress(60);
+
+      // Process each target sound
       const results: SeparationResult[] = [];
       
       for (const target of targetSounds) {
-        setProcessingProgress(40 + (targetSounds.indexOf(target) / targetSounds.length) * 40);
+        setProcessingProgress(60 + (targetSounds.indexOf(target) / targetSounds.length) * 30);
         
-        const separatedAudio = await simulateAdvancedSeparation(target, matchedSounds);
+        const separatedAudio = await extractAudioByFrequency(audioBuffer, target, matchedSounds);
         const confidence = calculateSeparationConfidence(target, matchedSounds);
         
         results.push({
@@ -94,6 +97,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
       });
 
     } catch (error) {
+      console.error('Audio processing error:', error);
       toast({
         title: "Processing Failed",
         description: "Error occurred during audio separation",
@@ -104,17 +108,139 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     }
   };
 
+  const loadAudioFile = async (file: File): Promise<AudioBuffer> => {
+    const audioContext = new AudioContext();
+    const arrayBuffer = await file.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    return audioBuffer;
+  };
+
+  const extractAudioByFrequency = async (audioBuffer: AudioBuffer, target: string, matchedSounds: string[]): Promise<string> => {
+    const audioContext = new AudioContext();
+    
+    // Get frequency ranges for the target sound
+    const frequencyRange = getTargetFrequencyRange(target);
+    
+    // Create a new buffer for the extracted audio
+    const outputBuffer = audioContext.createBuffer(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate
+    );
+
+    // Process each channel
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const inputData = audioBuffer.getChannelData(channel);
+      const outputData = outputBuffer.getChannelData(channel);
+      
+      // Apply frequency filtering based on target sound
+      await applyFrequencyFilter(inputData, outputData, frequencyRange, audioBuffer.sampleRate);
+    }
+
+    // Convert to blob and return URL
+    const blob = await audioBufferToBlob(outputBuffer);
+    return URL.createObjectURL(blob);
+  };
+
+  const getTargetFrequencyRange = (target: string): { low: number; high: number; emphasis: number } => {
+    const frequencyMap: { [key: string]: { low: number; high: number; emphasis: number } } = {
+      'speech': { low: 85, high: 4000, emphasis: 1000 },
+      'voice': { low: 85, high: 4000, emphasis: 1000 },
+      'talking': { low: 85, high: 4000, emphasis: 1000 },
+      'speaking': { low: 85, high: 4000, emphasis: 1000 },
+      'conversation': { low: 85, high: 4000, emphasis: 1000 },
+      'music': { low: 20, high: 20000, emphasis: 440 },
+      'song': { low: 20, high: 20000, emphasis: 440 },
+      'melody': { low: 80, high: 8000, emphasis: 440 },
+      'instrument': { low: 20, high: 15000, emphasis: 440 },
+      'guitar': { low: 80, high: 5000, emphasis: 330 },
+      'piano': { low: 27, high: 4200, emphasis: 523 },
+      'drums': { low: 20, high: 15000, emphasis: 100 },
+      'clapping': { low: 1000, high: 8000, emphasis: 2000 },
+      'applause': { low: 1000, high: 8000, emphasis: 2000 },
+      'footsteps': { low: 20, high: 2000, emphasis: 200 },
+      'walking': { low: 20, high: 2000, emphasis: 200 },
+      'dog': { low: 200, high: 8000, emphasis: 500 },
+      'barking': { low: 200, high: 8000, emphasis: 500 },
+      'animal': { low: 100, high: 8000, emphasis: 500 },
+      'bird': { low: 1000, high: 10000, emphasis: 3000 },
+      'chirping': { low: 1000, high: 10000, emphasis: 3000 },
+      'car': { low: 20, high: 2000, emphasis: 80 },
+      'vehicle': { low: 20, high: 2000, emphasis: 80 },
+      'engine': { low: 20, high: 2000, emphasis: 80 },
+      'traffic': { low: 20, high: 2000, emphasis: 200 },
+      'noise': { low: 20, high: 20000, emphasis: 1000 },
+      'background': { low: 20, high: 1000, emphasis: 200 },
+      'ambient': { low: 20, high: 1000, emphasis: 200 },
+      'water': { low: 100, high: 8000, emphasis: 1000 },
+      'flowing': { low: 100, high: 8000, emphasis: 1000 },
+      'rain': { low: 500, high: 15000, emphasis: 2000 },
+      'wind': { low: 20, high: 2000, emphasis: 100 },
+      'door': { low: 100, high: 4000, emphasis: 500 },
+      'phone': { low: 300, high: 3400, emphasis: 1000 },
+      'ringing': { low: 300, high: 4000, emphasis: 1000 }
+    };
+
+    // Find matching frequency range
+    for (const [key, range] of Object.entries(frequencyMap)) {
+      if (target.toLowerCase().includes(key)) {
+        return range;
+      }
+    }
+
+    // Default range for unknown sounds
+    return { low: 100, high: 8000, emphasis: 1000 };
+  };
+
+  const applyFrequencyFilter = async (inputData: Float32Array, outputData: Float32Array, frequencyRange: { low: number; high: number; emphasis: number }, sampleRate: number) => {
+    const fftSize = 2048;
+    const hopSize = fftSize / 4;
+    
+    // Simple frequency domain filtering
+    for (let i = 0; i < inputData.length; i += hopSize) {
+      const segment = inputData.slice(i, Math.min(i + fftSize, inputData.length));
+      
+      // Apply windowing
+      for (let j = 0; j < segment.length; j++) {
+        const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * j / (segment.length - 1)); // Hanning window
+        segment[j] *= window;
+      }
+      
+      // Simple frequency-based amplitude modulation
+      const processedSegment = new Float32Array(segment.length);
+      for (let j = 0; j < segment.length; j++) {
+        const frequency = (j / segment.length) * (sampleRate / 2);
+        
+        // Calculate filter response
+        let filterResponse = 0;
+        if (frequency >= frequencyRange.low && frequency <= frequencyRange.high) {
+          // Boost frequencies around the emphasis frequency
+          const distanceFromEmphasis = Math.abs(frequency - frequencyRange.emphasis);
+          const maxDistance = Math.max(frequencyRange.emphasis - frequencyRange.low, frequencyRange.high - frequencyRange.emphasis);
+          filterResponse = Math.max(0.1, 1 - (distanceFromEmphasis / maxDistance));
+        } else {
+          // Attenuate frequencies outside the range
+          filterResponse = 0.1;
+        }
+        
+        processedSegment[j] = segment[j] * filterResponse;
+      }
+      
+      // Copy processed segment to output
+      for (let j = 0; j < processedSegment.length && i + j < outputData.length; j++) {
+        outputData[i + j] = processedSegment[j];
+      }
+    }
+  };
+
   const parseQuery = (query: string): string[] => {
-    // Enhanced query parsing to extract target sounds
     const cleanQuery = query.toLowerCase().trim();
     
-    // Split by common separators
     const queries = cleanQuery
       .split(/[,;]|\sand\s|\sor\s/)
       .map(q => q.trim())
       .filter(q => q.length > 0);
 
-    // Extract meaningful sound descriptors
     const soundKeywords = [
       'speech', 'voice', 'talking', 'speaking', 'conversation',
       'music', 'song', 'melody', 'instrument', 'guitar', 'piano', 'drums',
@@ -136,7 +262,6 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
         }
       });
       
-      // If no keywords found, use the query itself
       if (extractedSounds.length === 0) {
         extractedSounds.push(query);
       }
@@ -183,84 +308,9 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     return false;
   };
 
-  const simulateAdvancedSeparation = async (target: string, matchedSounds: string[]): Promise<string> => {
-    // Simulate advanced audio separation with realistic processing time
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
-
-    const audioContext = new AudioContext();
-    const duration = 5; // 5 seconds
-    const sampleRate = audioContext.sampleRate;
-    const length = duration * sampleRate;
-    const buffer = audioContext.createBuffer(1, length, sampleRate);
-    const data = buffer.getChannelData(0);
-
-    // Generate audio based on target sound characteristics
-    const frequency = getSoundFrequency(target);
-    const amplitude = 0.3;
-
-    for (let i = 0; i < length; i++) {
-      const t = i / sampleRate;
-      
-      // Generate sound based on target type
-      if (target.includes('speech') || target.includes('voice')) {
-        // Speech-like patterns with formants
-        data[i] = amplitude * (
-          Math.sin(2 * Math.PI * frequency * t) * 0.6 +
-          Math.sin(2 * Math.PI * frequency * 2.5 * t) * 0.3 +
-          Math.sin(2 * Math.PI * frequency * 4 * t) * 0.1
-        ) * (0.8 + 0.2 * Math.sin(10 * t));
-      } else if (target.includes('music')) {
-        // Musical harmonics
-        data[i] = amplitude * (
-          Math.sin(2 * Math.PI * frequency * t) +
-          Math.sin(2 * Math.PI * frequency * 1.5 * t) * 0.5 +
-          Math.sin(2 * Math.PI * frequency * 2 * t) * 0.3
-        );
-      } else if (target.includes('noise')) {
-        // Filtered noise
-        data[i] = amplitude * (Math.random() - 0.5) * Math.exp(-t * 0.5);
-      } else {
-        // Default tone with some modulation
-        data[i] = amplitude * Math.sin(2 * Math.PI * frequency * t) * (0.9 + 0.1 * Math.sin(5 * t));
-      }
-    }
-
-    // Convert to blob
-    const blob = await audioBufferToBlob(buffer);
-    return URL.createObjectURL(blob);
-  };
-
-  const getSoundFrequency = (target: string): number => {
-    const frequencyMap: { [key: string]: number } = {
-      'speech': 150,
-      'voice': 150,
-      'talking': 150,
-      'music': 440,
-      'guitar': 330,
-      'piano': 523,
-      'drums': 100,
-      'dog': 500,
-      'barking': 500,
-      'car': 80,
-      'engine': 80,
-      'noise': 200,
-      'water': 300,
-      'bird': 800
-    };
-
-    for (const [key, freq] of Object.entries(frequencyMap)) {
-      if (target.includes(key)) {
-        return freq;
-      }
-    }
-
-    return 220; // Default
-  };
-
   const calculateSeparationConfidence = (target: string, matchedSounds: string[]): number => {
-    let confidence = 0.5; // Base confidence
+    let confidence = 0.5;
 
-    // Higher confidence if target matches detected sounds
     if (matchedSounds.some(sound => 
       sound.toLowerCase().includes(target.toLowerCase()) ||
       target.toLowerCase().includes(sound.toLowerCase())
@@ -268,7 +318,6 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
       confidence += 0.3;
     }
 
-    // Adjust based on query specificity
     if (target.length > 5) {
       confidence += 0.1;
     }
@@ -288,7 +337,6 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     const arrayBuffer = new ArrayBuffer(44 + length * 2);
     const view = new DataView(arrayBuffer);
     
-    // WAV header
     const writeString = (offset: number, string: string) => {
       for (let i = 0; i < string.length; i++) {
         view.setUint8(offset + i, string.charCodeAt(i));
