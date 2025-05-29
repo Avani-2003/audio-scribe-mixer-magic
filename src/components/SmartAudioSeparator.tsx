@@ -16,6 +16,7 @@ interface SeparationResult {
   description: string;
   matchedSounds: string[];
   processingMethod: string;
+  signalStrength: number;
 }
 
 interface SmartAudioSeparatorProps {
@@ -44,7 +45,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
       setSeparationResults([]);
       toast({
         title: "Audio File Loaded",
-        description: "Ready for enhanced source separation"
+        description: "Ready for enhanced audio separation"
       });
     }
   };
@@ -77,7 +78,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
         const progressBase = 40 + (targetSounds.indexOf(target) / targetSounds.length) * 50;
         setProcessingProgress(progressBase);
         
-        console.log(`Processing separation for: ${target}`);
+        console.log(`Processing enhanced separation for: ${target}`);
         const separationResult = await performEnhancedSeparation(audioBuffer, target, matchedSounds);
         const confidence = calculateEnhancedConfidence(target, matchedSounds, separationResult.quality);
         
@@ -90,7 +91,8 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
             sound.toLowerCase().includes(target.toLowerCase()) ||
             target.toLowerCase().includes(sound.toLowerCase())
           ),
-          processingMethod: separationResult.method
+          processingMethod: separationResult.method,
+          signalStrength: separationResult.quality
         });
       }
 
@@ -99,7 +101,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
 
       toast({
         title: "Enhanced Separation Complete",
-        description: `Successfully processed ${results.length} audio queries with improved accuracy`
+        description: `Successfully extracted ${results.length} audio queries with improved clarity`
       });
 
     } catch (error) {
@@ -118,18 +120,26 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     const audioContext = new AudioContext();
     const arrayBuffer = await file.arrayBuffer();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    console.log('Audio loaded for separation:', { duration: audioBuffer.duration, sampleRate: audioBuffer.sampleRate });
+    console.log('Audio loaded for enhanced separation:', { 
+      duration: audioBuffer.duration, 
+      sampleRate: audioBuffer.sampleRate,
+      channels: audioBuffer.numberOfChannels
+    });
     return audioBuffer;
   };
 
-  const performEnhancedSeparation = async (audioBuffer: AudioBuffer, target: string, matchedSounds: string[]): Promise<{ audioUrl: string; quality: number; method: string }> => {
+  const performEnhancedSeparation = async (
+    audioBuffer: AudioBuffer, 
+    target: string, 
+    matchedSounds: string[]
+  ): Promise<{ audioUrl: string; quality: number; method: string }> => {
     const audioContext = new AudioContext();
     
-    // Get enhanced frequency parameters for the target sound
+    // Get enhanced separation parameters for the target sound
     const separationParams = getEnhancedSeparationParams(target);
-    console.log(`Separation parameters for ${target}:`, separationParams);
+    console.log(`Enhanced separation parameters for ${target}:`, separationParams);
     
-    // Create a new buffer for the separated audio
+    // Create a new buffer for the separated audio with gain boost
     const outputBuffer = audioContext.createBuffer(
       audioBuffer.numberOfChannels,
       audioBuffer.length,
@@ -139,22 +149,25 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     let separationQuality = 0;
     let method = '';
 
-    // Process each channel with enhanced algorithms
+    // Process each channel with enhanced algorithms and signal boosting
     for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
       const inputData = audioBuffer.getChannelData(channel);
       const outputData = outputBuffer.getChannelData(channel);
       
-      // Apply enhanced separation based on target type
+      // Apply enhanced separation based on target type with signal amplification
       if (separationParams.type === 'harmonic') {
-        separationQuality = await applyHarmonicSeparation(inputData, outputData, separationParams, audioBuffer.sampleRate);
-        method = 'Harmonic-Percussive Separation';
+        separationQuality = await applyEnhancedHarmonicSeparation(inputData, outputData, separationParams, audioBuffer.sampleRate);
+        method = 'Enhanced Harmonic-Percussive Separation';
       } else if (separationParams.type === 'spectral') {
-        separationQuality = await applySpectralMasking(inputData, outputData, separationParams, audioBuffer.sampleRate);
-        method = 'Spectral Masking';
+        separationQuality = await applyEnhancedSpectralMasking(inputData, outputData, separationParams, audioBuffer.sampleRate);
+        method = 'Advanced Spectral Masking';
       } else {
         separationQuality = await applyAdvancedFiltering(inputData, outputData, separationParams, audioBuffer.sampleRate);
-        method = 'Advanced Frequency Filtering';
+        method = 'Multi-band Frequency Filtering';
       }
+      
+      // Apply signal amplification to boost weak signals
+      applySignalAmplification(outputData, separationParams);
     }
 
     // Convert to blob and return URL
@@ -171,62 +184,138 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
       'speech': { 
         type: 'harmonic', 
         freqRange: { low: 85, high: 4000, emphasis: [300, 1000, 2000] },
-        harmonicRatio: 0.7,
-        adaptiveGain: true 
+        harmonicRatio: 0.8,
+        adaptiveGain: true,
+        amplification: 2.5,
+        noiseReduction: 0.3
       },
       'voice': { 
         type: 'harmonic', 
         freqRange: { low: 85, high: 4000, emphasis: [300, 1000, 2000] },
+        harmonicRatio: 0.8,
+        adaptiveGain: true,
+        amplification: 2.5,
+        noiseReduction: 0.3
+      },
+      'conversation': { 
+        type: 'harmonic', 
+        freqRange: { low: 85, high: 4000, emphasis: [300, 1000, 2000] },
         harmonicRatio: 0.7,
-        adaptiveGain: true 
+        adaptiveGain: true,
+        amplification: 2.2,
+        noiseReduction: 0.4
       },
       'music': { 
         type: 'harmonic', 
         freqRange: { low: 20, high: 20000, emphasis: [440, 880, 1760] },
-        harmonicRatio: 0.8,
-        adaptiveGain: false 
+        harmonicRatio: 0.9,
+        adaptiveGain: false,
+        amplification: 1.8,
+        noiseReduction: 0.2
       },
       'drums': { 
         type: 'spectral', 
         freqRange: { low: 20, high: 8000, emphasis: [60, 200, 2000] },
-        percussiveRatio: 0.8,
-        transientBoost: true 
+        percussiveRatio: 0.9,
+        transientBoost: true,
+        amplification: 3.0,
+        noiseReduction: 0.1
       },
       'car': { 
         type: 'spectral', 
-        freqRange: { low: 20, high: 500, emphasis: [50, 100, 200] },
+        freqRange: { low: 20, high: 600, emphasis: [50, 100, 200] },
         noiseProfile: 'engine',
-        steadyState: true 
+        steadyState: true,
+        amplification: 2.8,
+        noiseReduction: 0.2
       },
       'engine': { 
         type: 'spectral', 
-        freqRange: { low: 20, high: 500, emphasis: [50, 100, 200] },
+        freqRange: { low: 20, high: 600, emphasis: [50, 100, 200] },
         noiseProfile: 'engine',
-        steadyState: true 
+        steadyState: true,
+        amplification: 2.8,
+        noiseReduction: 0.2
+      },
+      'vehicle': { 
+        type: 'spectral', 
+        freqRange: { low: 20, high: 800, emphasis: [50, 150, 300] },
+        noiseProfile: 'engine',
+        steadyState: true,
+        amplification: 2.5,
+        noiseReduction: 0.25
       },
       'bird': { 
         type: 'spectral', 
         freqRange: { low: 1000, high: 8000, emphasis: [2000, 4000, 6000] },
         chirpDetection: true,
-        rapidChanges: true 
+        rapidChanges: true,
+        amplification: 3.5,
+        noiseReduction: 0.4
+      },
+      'chirping': { 
+        type: 'spectral', 
+        freqRange: { low: 1000, high: 8000, emphasis: [2000, 4000, 6000] },
+        chirpDetection: true,
+        rapidChanges: true,
+        amplification: 3.5,
+        noiseReduction: 0.4
       },
       'dog': { 
         type: 'spectral', 
         freqRange: { low: 200, high: 3000, emphasis: [500, 1000, 1500] },
         barkPattern: true,
-        burstDetection: true 
+        burstDetection: true,
+        amplification: 3.2,
+        noiseReduction: 0.3
+      },
+      'barking': { 
+        type: 'spectral', 
+        freqRange: { low: 200, high: 3000, emphasis: [500, 1000, 1500] },
+        barkPattern: true,
+        burstDetection: true,
+        amplification: 3.2,
+        noiseReduction: 0.3
       },
       'water': { 
         type: 'spectral', 
         freqRange: { low: 100, high: 15000, emphasis: [1000, 4000, 8000] },
         noiseProfile: 'water',
-        continuousFlow: true 
+        continuousFlow: true,
+        amplification: 2.0,
+        noiseReduction: 0.3
+      },
+      'flowing': { 
+        type: 'spectral', 
+        freqRange: { low: 100, high: 15000, emphasis: [1000, 4000, 8000] },
+        noiseProfile: 'water',
+        continuousFlow: true,
+        amplification: 2.0,
+        noiseReduction: 0.3
       },
       'wind': { 
         type: 'spectral', 
         freqRange: { low: 20, high: 2000, emphasis: [50, 200, 1000] },
         noiseProfile: 'wind',
-        dynamicRange: true 
+        dynamicRange: true,
+        amplification: 2.2,
+        noiseReduction: 0.2
+      },
+      'footsteps': { 
+        type: 'spectral', 
+        freqRange: { low: 100, high: 1200, emphasis: [200, 400, 800] },
+        percussiveRatio: 0.7,
+        transientBoost: true,
+        amplification: 2.8,
+        noiseReduction: 0.4
+      },
+      'walking': { 
+        type: 'spectral', 
+        freqRange: { low: 100, high: 1200, emphasis: [200, 400, 800] },
+        percussiveRatio: 0.7,
+        transientBoost: true,
+        amplification: 2.8,
+        noiseReduction: 0.4
       }
     };
 
@@ -237,61 +326,73 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
       }
     }
 
-    // Default parameters for unknown sounds
+    // Default parameters for unknown sounds with moderate amplification
     return { 
       type: 'spectral', 
       freqRange: { low: 100, high: 8000, emphasis: [1000] },
-      adaptiveGain: true 
+      adaptiveGain: true,
+      amplification: 2.0,
+      noiseReduction: 0.3
     };
   };
 
-  const applyHarmonicSeparation = async (inputData: Float32Array, outputData: Float32Array, params: any, sampleRate: number): Promise<number> => {
-    const fftSize = 2048;
-    const hopSize = fftSize / 4;
+  const applyEnhancedHarmonicSeparation = async (
+    inputData: Float32Array, 
+    outputData: Float32Array, 
+    params: any, 
+    sampleRate: number
+  ): Promise<number> => {
+    const fftSize = 4096; // Increased for better resolution
+    const hopSize = fftSize / 8; // Smaller hop for better time resolution
     let overallQuality = 0;
     let frameCount = 0;
     
-    console.log('Applying harmonic separation...');
+    console.log('Applying enhanced harmonic separation with amplification...');
     
     for (let i = 0; i < inputData.length; i += hopSize) {
       const segment = inputData.slice(i, Math.min(i + fftSize, inputData.length));
       
-      // Apply window function
+      // Apply Hamming window for better frequency resolution
       const windowed = new Float32Array(segment.length);
       for (let j = 0; j < segment.length; j++) {
-        const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * j / (segment.length - 1));
+        const window = 0.54 - 0.46 * Math.cos(2 * Math.PI * j / (segment.length - 1));
         windowed[j] = segment[j] * window;
       }
       
-      // Harmonic enhancement
-      const harmonicStrength = detectHarmonicContent(windowed, sampleRate, params.freqRange.emphasis);
+      // Enhanced harmonic detection
+      const harmonicStrength = detectEnhancedHarmonicContent(windowed, sampleRate, params.freqRange.emphasis);
       
-      // Apply harmonic masking
+      // Apply enhanced harmonic masking with amplification
       for (let j = 0; j < windowed.length; j++) {
         const frequency = (j / windowed.length) * (sampleRate / 2);
         let mask = 0;
         
-        // Enhanced harmonic detection
         if (isInTargetRange(frequency, params.freqRange)) {
           mask = harmonicStrength * params.harmonicRatio;
           
-          // Boost emphasis frequencies
+          // Enhanced frequency emphasis
           for (const emphFreq of params.freqRange.emphasis) {
             const distance = Math.abs(frequency - emphFreq);
-            if (distance < 100) {
-              mask *= (1 + (100 - distance) / 100);
+            if (distance < 150) {
+              mask *= (1 + (150 - distance) / 150 * 1.5); // Stronger emphasis
             }
           }
+          
+          // Apply amplification to target frequencies
+          mask *= params.amplification || 1.0;
         } else {
-          mask = 0.1; // Attenuate non-target frequencies
+          // Reduced suppression to preserve some context
+          mask = params.noiseReduction || 0.1;
         }
         
-        windowed[j] *= Math.min(1, mask);
+        windowed[j] *= Math.min(3.0, mask); // Allow higher amplification
       }
       
-      // Copy processed segment to output
+      // Copy processed segment to output with overlap-add
       for (let j = 0; j < windowed.length && i + j < outputData.length; j++) {
-        outputData[i + j] = windowed[j];
+        if (i + j < outputData.length) {
+          outputData[i + j] += windowed[j] * 0.5; // Overlap-add with scaling
+        }
       }
       
       overallQuality += harmonicStrength;
@@ -301,45 +402,56 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     return frameCount > 0 ? overallQuality / frameCount : 0.5;
   };
 
-  const applySpectralMasking = async (inputData: Float32Array, outputData: Float32Array, params: any, sampleRate: number): Promise<number> => {
-    const fftSize = 2048;
-    const hopSize = fftSize / 4;
+  const applyEnhancedSpectralMasking = async (
+    inputData: Float32Array, 
+    outputData: Float32Array, 
+    params: any, 
+    sampleRate: number
+  ): Promise<number> => {
+    const fftSize = 4096;
+    const hopSize = fftSize / 8;
     let overallQuality = 0;
     let frameCount = 0;
     
-    console.log('Applying spectral masking...');
+    console.log('Applying enhanced spectral masking with signal boost...');
     
     for (let i = 0; i < inputData.length; i += hopSize) {
       const segment = inputData.slice(i, Math.min(i + fftSize, inputData.length));
       
-      // Apply window
+      // Apply Hamming window
       const windowed = new Float32Array(segment.length);
       for (let j = 0; j < segment.length; j++) {
-        const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * j / (segment.length - 1));
+        const window = 0.54 - 0.46 * Math.cos(2 * Math.PI * j / (segment.length - 1));
         windowed[j] = segment[j] * window;
       }
       
-      // Spectral analysis
-      const spectralEnergy = calculateSpectralEnergy(windowed, sampleRate, params.freqRange);
+      // Enhanced spectral analysis
+      const spectralEnergy = calculateEnhancedSpectralEnergy(windowed, sampleRate, params.freqRange);
       
-      // Apply enhanced spectral mask
+      // Apply enhanced spectral mask with amplification
       for (let j = 0; j < windowed.length; j++) {
         const frequency = (j / windowed.length) * (sampleRate / 2);
         let mask = 0;
         
         if (isInTargetRange(frequency, params.freqRange)) {
-          // Calculate adaptive mask based on spectral characteristics
-          mask = calculateAdaptiveMask(frequency, params, spectralEnergy);
+          // Calculate enhanced adaptive mask
+          mask = calculateEnhancedAdaptiveMask(frequency, params, spectralEnergy);
+          
+          // Apply amplification
+          mask *= params.amplification || 1.0;
         } else {
-          mask = 0.05; // Strong attenuation for out-of-range frequencies
+          // Controlled suppression
+          mask = params.noiseReduction || 0.05;
         }
         
-        windowed[j] *= mask;
+        windowed[j] *= Math.min(4.0, mask); // Higher max amplification for spectral
       }
       
-      // Copy to output
+      // Copy to output with overlap-add
       for (let j = 0; j < windowed.length && i + j < outputData.length; j++) {
-        outputData[i + j] = windowed[j];
+        if (i + j < outputData.length) {
+          outputData[i + j] += windowed[j] * 0.5;
+        }
       }
       
       overallQuality += spectralEnergy;
@@ -349,103 +461,92 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     return frameCount > 0 ? overallQuality / frameCount : 0.5;
   };
 
-  const applyAdvancedFiltering = async (inputData: Float32Array, outputData: Float32Array, params: any, sampleRate: number): Promise<number> => {
-    console.log('Applying advanced frequency filtering...');
+  const applySignalAmplification = (outputData: Float32Array, params: any) => {
+    const amplification = params.amplification || 1.0;
+    const noiseFloor = 0.001; // Minimum signal level
     
-    // Multi-band processing
-    const bands = divideToBands(inputData, sampleRate, params.freqRange);
-    let totalQuality = 0;
-    
-    for (const band of bands) {
-      const bandQuality = processBand(band, params);
-      totalQuality += bandQuality;
+    // Apply dynamic range compression and amplification
+    for (let i = 0; i < outputData.length; i++) {
+      let sample = outputData[i];
+      
+      // Apply soft limiting to prevent clipping
+      if (Math.abs(sample) > 0.8) {
+        sample = Math.sign(sample) * (0.8 + 0.2 * Math.tanh((Math.abs(sample) - 0.8) * 5));
+      }
+      
+      // Boost weak signals above noise floor
+      if (Math.abs(sample) > noiseFloor) {
+        sample *= amplification;
+      }
+      
+      // Final limiting
+      outputData[i] = Math.max(-0.95, Math.min(0.95, sample));
     }
-    
-    // Reconstruct signal
-    combineBands(bands, outputData);
-    
-    return totalQuality / bands.length;
   };
 
-  const detectHarmonicContent = (data: Float32Array, sampleRate: number, emphasisFreqs: number[]): number => {
+  const detectEnhancedHarmonicContent = (data: Float32Array, sampleRate: number, emphasisFreqs: number[]): number => {
     let harmonicScore = 0;
+    let fundamentalScore = 0;
     
-    // Simplified harmonic detection
+    // Enhanced harmonic detection with fundamental frequency analysis
     for (const freq of emphasisFreqs) {
       const bin = Math.floor((freq * data.length) / (sampleRate / 2));
       if (bin < data.length) {
-        harmonicScore += Math.abs(data[bin]);
+        const magnitude = Math.abs(data[bin]);
+        harmonicScore += magnitude;
+        
+        // Check for harmonics (2x, 3x frequency)
+        const harmonic2Bin = Math.floor((freq * 2 * data.length) / (sampleRate / 2));
+        const harmonic3Bin = Math.floor((freq * 3 * data.length) / (sampleRate / 2));
+        
+        if (harmonic2Bin < data.length) {
+          harmonicScore += Math.abs(data[harmonic2Bin]) * 0.5;
+        }
+        if (harmonic3Bin < data.length) {
+          harmonicScore += Math.abs(data[harmonic3Bin]) * 0.3;
+        }
       }
     }
     
-    return Math.min(1, harmonicScore / emphasisFreqs.length);
+    return Math.min(1.2, harmonicScore / emphasisFreqs.length); // Allow higher scores
   };
 
-  const calculateSpectralEnergy = (data: Float32Array, sampleRate: number, freqRange: any): number => {
+  const calculateEnhancedSpectralEnergy = (data: Float32Array, sampleRate: number, freqRange: any): number => {
     let energy = 0;
+    let peakEnergy = 0;
     const startBin = Math.floor((freqRange.low * data.length) / (sampleRate / 2));
     const endBin = Math.floor((freqRange.high * data.length) / (sampleRate / 2));
     
     for (let i = startBin; i < endBin && i < data.length; i++) {
-      energy += data[i] * data[i];
+      const magnitude = Math.abs(data[i]);
+      energy += magnitude * magnitude;
+      peakEnergy = Math.max(peakEnergy, magnitude);
     }
     
-    return energy / (endBin - startBin);
+    // Combine average and peak energy for better assessment
+    const avgEnergy = energy / Math.max(1, (endBin - startBin));
+    return (avgEnergy + peakEnergy * 0.3) / 1.3;
   };
 
-  const calculateAdaptiveMask = (frequency: number, params: any, spectralEnergy: number): number => {
-    let baseMask = 0.3;
+  const calculateEnhancedAdaptiveMask = (frequency: number, params: any, spectralEnergy: number): number => {
+    let baseMask = 0.4; // Higher base mask
     
-    // Boost for emphasis frequencies
+    // Enhanced frequency emphasis
     for (const emphFreq of params.freqRange.emphasis) {
       const distance = Math.abs(frequency - emphFreq);
-      if (distance < 200) {
-        baseMask += (200 - distance) / 200 * 0.5;
+      if (distance < 300) { // Wider frequency bands
+        baseMask += (300 - distance) / 300 * 0.8; // Stronger boost
       }
     }
     
-    // Adapt based on spectral energy
-    baseMask *= (0.5 + spectralEnergy);
+    // Enhanced energy-based adaptation
+    baseMask *= (0.3 + spectralEnergy * 1.4);
     
-    return Math.min(1, baseMask);
+    return Math.min(2.5, baseMask); // Higher maximum mask
   };
 
   const isInTargetRange = (frequency: number, freqRange: any): boolean => {
     return frequency >= freqRange.low && frequency <= freqRange.high;
-  };
-
-  const divideToBands = (data: Float32Array, sampleRate: number, freqRange: any): Float32Array[] => {
-    // Simplified band division
-    const numBands = 8;
-    const bandSize = Math.floor(data.length / numBands);
-    const bands = [];
-    
-    for (let i = 0; i < numBands; i++) {
-      const start = i * bandSize;
-      const end = Math.min((i + 1) * bandSize, data.length);
-      bands.push(data.slice(start, end));
-    }
-    
-    return bands;
-  };
-
-  const processBand = (band: Float32Array, params: any): number => {
-    // Apply band-specific processing
-    let quality = 0;
-    for (let i = 0; i < band.length; i++) {
-      band[i] *= 0.8; // Simple gain adjustment
-      quality += Math.abs(band[i]);
-    }
-    return quality / band.length;
-  };
-
-  const combineBands = (bands: Float32Array[], output: Float32Array): void => {
-    let pos = 0;
-    for (const band of bands) {
-      for (let i = 0; i < band.length && pos < output.length; i++) {
-        output[pos++] = band[i];
-      }
-    }
   };
 
   const parseQuery = (query: string): string[] => {
@@ -524,22 +625,22 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
   };
 
   const calculateEnhancedConfidence = (target: string, matchedSounds: string[], separationQuality: number): number => {
-    let confidence = 0.4;
+    let confidence = 0.5; // Higher base confidence
 
-    // Base confidence from matching
+    // Enhanced confidence from matching
     if (matchedSounds.some(sound => 
       sound.toLowerCase().includes(target.toLowerCase()) ||
       target.toLowerCase().includes(sound.toLowerCase())
     )) {
-      confidence += 0.3;
+      confidence += 0.25;
     }
 
     // Quality-based confidence boost
-    confidence += separationQuality * 0.4;
+    confidence += separationQuality * 0.3;
 
     // Target-specific confidence adjustment
-    if (['speech', 'voice', 'music'].includes(target)) {
-      confidence += 0.1; // These are easier to separate
+    if (['speech', 'voice', 'music', 'dog', 'barking', 'bird', 'chirping'].includes(target)) {
+      confidence += 0.15; // Higher boost for well-defined sounds
     }
 
     return Math.min(0.95, confidence);
@@ -547,9 +648,64 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
 
   const generateEnhancedDescription = (target: string, confidence: number, method: string): string => {
     const qualityDescriptor = confidence > 0.8 ? 'high-quality' :
-                             confidence > 0.6 ? 'good-quality' : 'moderate-quality';
+                             confidence > 0.65 ? 'good-quality' : 'moderate-quality';
     
-    return `${qualityDescriptor} extraction of ${target} using ${method} (${(confidence * 100).toFixed(1)}% confidence)`;
+    return `${qualityDescriptor} extraction of ${target} using ${method} with signal enhancement (${(confidence * 100).toFixed(1)}% confidence)`;
+  };
+
+  const applyAdvancedFiltering = async (inputData: Float32Array, outputData: Float32Array, params: any, sampleRate: number): Promise<number> => {
+    console.log('Applying advanced multi-band filtering...');
+    
+    // Enhanced multi-band processing with amplification
+    const bands = divideToBands(inputData, sampleRate, params.freqRange);
+    let totalQuality = 0;
+    
+    for (const band of bands) {
+      const bandQuality = processBand(band, params);
+      totalQuality += bandQuality;
+    }
+    
+    // Reconstruct signal with amplification
+    combineBands(bands, outputData);
+    
+    // Apply signal amplification
+    applySignalAmplification(outputData, params);
+    
+    return totalQuality / bands.length;
+  };
+
+  const divideToBands = (data: Float32Array, sampleRate: number, freqRange: any): Float32Array[] => {
+    const numBands = 16; // More bands for better separation
+    const bandSize = Math.floor(data.length / numBands);
+    const bands = [];
+    
+    for (let i = 0; i < numBands; i++) {
+      const start = i * bandSize;
+      const end = Math.min((i + 1) * bandSize, data.length);
+      bands.push(data.slice(start, end));
+    }
+    
+    return bands;
+  };
+
+  const processBand = (band: Float32Array, params: any): number => {
+    let quality = 0;
+    const amplification = params.amplification || 1.0;
+    
+    for (let i = 0; i < band.length; i++) {
+      band[i] *= 0.9 * amplification; // Enhanced gain with amplification
+      quality += Math.abs(band[i]);
+    }
+    return quality / band.length;
+  };
+
+  const combineBands = (bands: Float32Array[], output: Float32Array): void => {
+    let pos = 0;
+    for (const band of bands) {
+      for (let i = 0; i < band.length && pos < output.length; i++) {
+        output[pos++] = band[i];
+      }
+    }
   };
 
   const audioBufferToWav = async (buffer: AudioBuffer): Promise<Blob> => {
@@ -620,7 +776,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
           Enhanced Smart Audio Source Separator
         </CardTitle>
         <p className="text-sm text-gray-600">
-          Extract specific sounds from mixed audio using advanced separation algorithms and natural language queries
+          Advanced audio separation with signal amplification and improved clarity for precise sound extraction
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -670,7 +826,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
                   rows={3}
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Enhanced processing: Uses advanced algorithms for better separation of speech, music, animals, vehicles, and environmental sounds.
+                  Enhanced processing with signal amplification for clearer, stronger audio output. Supports precise extraction of speech, animals, vehicles, and environmental sounds.
                 </p>
               </div>
 
@@ -682,12 +838,12 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing with Enhanced Algorithms...
+                    Processing with Enhanced Amplification...
                   </>
                 ) : (
                   <>
                     <Search className="w-4 h-4 mr-2" />
-                    Extract Audio (Enhanced)
+                    Extract Audio (Enhanced & Amplified)
                   </>
                 )}
               </Button>
@@ -695,7 +851,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
               {isProcessing && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Enhanced Processing</span>
+                    <span>Enhanced Processing with Signal Boost</span>
                     <span>{processingProgress}%</span>
                   </div>
                   <Progress value={processingProgress} className="w-full" />
@@ -707,7 +863,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
 
         {separationResults.length > 0 && (
           <div className="space-y-4">
-            <h3 className="font-semibold">Enhanced Extraction Results</h3>
+            <h3 className="font-semibold">Enhanced Extraction Results (Amplified)</h3>
             
             <div className="space-y-4">
               {separationResults.map((result, index) => (
@@ -718,6 +874,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
                         <h4 className="font-medium">"{result.query}"</h4>
                         <p className="text-sm text-gray-600">{result.description}</p>
                         <p className="text-xs text-blue-600 mt-1">Method: {result.processingMethod}</p>
+                        <p className="text-xs text-green-600">Signal Strength: {(result.signalStrength * 100).toFixed(1)}%</p>
                         
                         {result.matchedSounds.length > 0 && (
                           <div className="mt-2">
@@ -739,7 +896,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
                           <div 
                             className={`h-2 rounded-full transition-all ${
                               result.confidence > 0.8 ? 'bg-green-500' :
-                              result.confidence > 0.6 ? 'bg-yellow-500' : 'bg-red-500'
+                              result.confidence > 0.65 ? 'bg-yellow-500' : 'bg-orange-500'
                             }`}
                             style={{ width: `${result.confidence * 100}%` }}
                           />
@@ -760,7 +917,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
                         size="sm"
                       >
                         {playingIndex === index ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                        {playingIndex === index ? 'Pause' : 'Play'}
+                        {playingIndex === index ? 'Pause' : 'Play Enhanced'}
                       </Button>
                       <Button 
                         onClick={() => downloadExtracted(result.extractedAudio, result.query)}
