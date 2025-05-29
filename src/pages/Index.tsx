@@ -27,7 +27,7 @@ const Index = () => {
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Upload mixed audio, analyze its content using AI, then extract specific sounds 
-            using natural language queries. Perfect for final year projects in audio processing and machine learning.
+            using natural language queries. 
           </p>
         </div>
 
@@ -89,9 +89,7 @@ const Index = () => {
             <CardContent className="p-6">
               <h3 className="text-xl font-semibold mb-2">Advanced Audio Processing System</h3>
               <p>
-                This system demonstrates modern audio processing techniques including content analysis, 
-                feature extraction, and intelligent source separation using web technologies. 
-                Integrate with real ML models like BERT for audio or specialized audio separation networks for production use!
+                This system demonstrates modern audio processing technique.
               </p>
             </CardContent>
           </Card>
