@@ -22,14 +22,7 @@ const ProjectInfo = () => {
     'Download and playback functionality'
   ];
 
-  const nextSteps = [
-    'Implement actual neural network models (PyTorch/TensorFlow)',
-    'Use real audio separation algorithms (STFT, ICA, Deep Learning)',
-    'Connect to AudioCaps dataset API',
-    'Add advanced audio preprocessing',
-    'Implement real-time processing',
-    'Add model training interface'
-  ];
+
 
   return (
     <div className="space-y-6">
@@ -71,32 +64,7 @@ const ProjectInfo = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Next Steps for Production</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {nextSteps.map((step, index) => (
-              <div key={index} className="flex items-start gap-2">
-                <div className="w-6 h-6 bg-yellow-100 rounded-full flex items-center justify-center text-xs font-medium text-yellow-700 mt-0.5">
-                  {index + 1}
-                </div>
-                <span className="text-gray-700">{step}</span>
-              </div>
-            ))}
-          </div>
-          
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-medium text-blue-800 mb-2">Important Note:</h4>
-            <p className="text-blue-700 text-sm">
-              This demo shows the UI and workflow. For a real implementation, you'll need to integrate 
-              actual machine learning models for audio separation. Consider using libraries like 
-              librosa (Python), TensorFlow.js, or connecting to a backend service with PyTorch models.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+
     </div>
   );
 };
