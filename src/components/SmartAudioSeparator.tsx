@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,7 +43,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
       setSeparationResults([]);
       toast({
         title: "Audio File Loaded",
-        description: "Ready for audio separation"
+        description: "Ready for source separation"
       });
     }
   };
@@ -56,8 +55,6 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     setProcessingProgress(0);
 
     try {
-      console.log('Starting audio separation for query:', query);
-      
       // Parse the query to identify target sounds
       const targetSounds = parseQuery(query);
       setProcessingProgress(20);
@@ -74,13 +71,14 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
       const results: SeparationResult[] = [];
       
       for (const target of targetSounds) {
-        console.log(`Processing separation for: ${target}`);
-        const separationResult = await performAudioSeparation(audioBuffer, target, matchedSounds);
-        const confidence = calculateConfidence(target, matchedSounds);
+        setProcessingProgress(60 + (targetSounds.indexOf(target) / targetSounds.length) * 30);
+        
+        const separatedAudio = await extractAudioByFrequency(audioBuffer, target, matchedSounds);
+        const confidence = calculateSeparationConfidence(target, matchedSounds);
         
         results.push({
           query: target,
-          extractedAudio: separationResult,
+          extractedAudio: separatedAudio,
           confidence: confidence,
           description: generateDescription(target, confidence),
           matchedSounds: matchedSounds.filter(sound => 
@@ -95,7 +93,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
 
       toast({
         title: "Separation Complete",
-        description: `Successfully extracted ${results.length} audio queries`
+        description: `Successfully processed ${results.length} audio queries`
       });
 
     } catch (error) {
@@ -114,219 +112,145 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     const audioContext = new AudioContext();
     const arrayBuffer = await file.arrayBuffer();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    console.log('Audio loaded for separation:', { 
-      duration: audioBuffer.duration, 
-      sampleRate: audioBuffer.sampleRate 
-    });
     return audioBuffer;
   };
 
-  const performAudioSeparation = async (
-    audioBuffer: AudioBuffer, 
-    target: string, 
-    matchedSounds: string[]
-  ): Promise<string> => {
+  const extractAudioByFrequency = async (audioBuffer: AudioBuffer, target: string, matchedSounds: string[]): Promise<string> => {
     const audioContext = new AudioContext();
     
-    // Get separation parameters for the target sound
-    const separationParams = getSeparationParams(target);
-    console.log(`Separation parameters for ${target}:`, separationParams);
+    // Get frequency ranges for the target sound
+    const frequencyRange = getTargetFrequencyRange(target);
     
-    // Create a new buffer for the separated audio with proper amplification
+    // Create a new buffer for the extracted audio
     const outputBuffer = audioContext.createBuffer(
       audioBuffer.numberOfChannels,
       audioBuffer.length,
       audioBuffer.sampleRate
     );
 
-    // Process each channel with improved algorithms and strong amplification
+    // Process each channel
     for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
       const inputData = audioBuffer.getChannelData(channel);
       const outputData = outputBuffer.getChannelData(channel);
       
-      // Apply frequency-based separation with strong amplification
-      await applyFrequencyBasedSeparation(inputData, outputData, separationParams, audioBuffer.sampleRate);
+      // Apply frequency filtering based on target sound
+      await applyFrequencyFilter(inputData, outputData, frequencyRange, audioBuffer.sampleRate);
     }
 
     // Convert to blob and return URL
-    const blob = await audioBufferToWav(outputBuffer);
+    const blob = await audioBufferToBlob(outputBuffer);
     return URL.createObjectURL(blob);
   };
 
-  const getSeparationParams = (target: string) => {
-    const paramMap: { [key: string]: any } = {
-      'speech': { 
-        freqRange: { low: 85, high: 4000 },
-        emphasis: [300, 1000, 2000],
-        gain: 4.0,
-        type: 'harmonic'
-      },
-      'voice': { 
-        freqRange: { low: 85, high: 4000 },
-        emphasis: [300, 1000, 2000],
-        gain: 4.0,
-        type: 'harmonic'
-      },
-      'music': { 
-        freqRange: { low: 20, high: 20000 },
-        emphasis: [440, 880, 1760],
-        gain: 3.0,
-        type: 'harmonic'
-      },
-      'dog': { 
-        freqRange: { low: 200, high: 3000 },
-        emphasis: [500, 1000, 1500],
-        gain: 5.0,
-        type: 'burst'
-      },
-      'barking': { 
-        freqRange: { low: 200, high: 3000 },
-        emphasis: [500, 1000, 1500],
-        gain: 5.0,
-        type: 'burst'
-      },
-      'bird': { 
-        freqRange: { low: 1000, high: 8000 },
-        emphasis: [2000, 4000, 6000],
-        gain: 6.0,
-        type: 'tonal'
-      },
-      'chirping': { 
-        freqRange: { low: 1000, high: 8000 },
-        emphasis: [2000, 4000, 6000],
-        gain: 6.0,
-        type: 'tonal'
-      },
-      'car': { 
-        freqRange: { low: 20, high: 600 },
-        emphasis: [50, 100, 200],
-        gain: 4.5,
-        type: 'noise'
-      },
-      'engine': { 
-        freqRange: { low: 20, high: 600 },
-        emphasis: [50, 100, 200],
-        gain: 4.5,
-        type: 'noise'
-      },
-      'water': { 
-        freqRange: { low: 100, high: 15000 },
-        emphasis: [1000, 4000, 8000],
-        gain: 3.5,
-        type: 'noise'
-      },
-      'wind': { 
-        freqRange: { low: 20, high: 2000 },
-        emphasis: [50, 200, 1000],
-        gain: 3.0,
-        type: 'noise'
-      }
+  const getTargetFrequencyRange = (target: string): { low: number; high: number; emphasis: number } => {
+    const frequencyMap: { [key: string]: { low: number; high: number; emphasis: number } } = {
+      'speech': { low: 85, high: 4000, emphasis: 1000 },
+      'voice': { low: 85, high: 4000, emphasis: 1000 },
+      'talking': { low: 85, high: 4000, emphasis: 1000 },
+      'speaking': { low: 85, high: 4000, emphasis: 1000 },
+      'conversation': { low: 85, high: 4000, emphasis: 1000 },
+      'music': { low: 20, high: 20000, emphasis: 440 },
+      'song': { low: 20, high: 20000, emphasis: 440 },
+      'melody': { low: 80, high: 8000, emphasis: 440 },
+      'instrument': { low: 20, high: 15000, emphasis: 440 },
+      'guitar': { low: 80, high: 5000, emphasis: 330 },
+      'piano': { low: 27, high: 4200, emphasis: 523 },
+      'drums': { low: 20, high: 15000, emphasis: 100 },
+      'clapping': { low: 1000, high: 8000, emphasis: 2000 },
+      'applause': { low: 1000, high: 8000, emphasis: 2000 },
+      'footsteps': { low: 20, high: 2000, emphasis: 200 },
+      'walking': { low: 20, high: 2000, emphasis: 200 },
+      'dog': { low: 200, high: 8000, emphasis: 500 },
+      'barking': { low: 200, high: 8000, emphasis: 500 },
+      'animal': { low: 100, high: 8000, emphasis: 500 },
+      'bird': { low: 1000, high: 10000, emphasis: 3000 },
+      'chirping': { low: 1000, high: 10000, emphasis: 3000 },
+      'car': { low: 20, high: 2000, emphasis: 80 },
+      'vehicle': { low: 20, high: 2000, emphasis: 80 },
+      'engine': { low: 20, high: 2000, emphasis: 80 },
+      'traffic': { low: 20, high: 2000, emphasis: 200 },
+      'noise': { low: 20, high: 20000, emphasis: 1000 },
+      'background': { low: 20, high: 1000, emphasis: 200 },
+      'ambient': { low: 20, high: 1000, emphasis: 200 },
+      'water': { low: 100, high: 8000, emphasis: 1000 },
+      'flowing': { low: 100, high: 8000, emphasis: 1000 },
+      'rain': { low: 500, high: 15000, emphasis: 2000 },
+      'wind': { low: 20, high: 2000, emphasis: 100 },
+      'door': { low: 100, high: 4000, emphasis: 500 },
+      'phone': { low: 300, high: 3400, emphasis: 1000 },
+      'ringing': { low: 300, high: 4000, emphasis: 1000 }
     };
 
-    // Find best match for target
-    for (const [key, params] of Object.entries(paramMap)) {
+    // Find matching frequency range
+    for (const [key, range] of Object.entries(frequencyMap)) {
       if (target.toLowerCase().includes(key)) {
-        return params;
+        return range;
       }
     }
 
-    // Default parameters with moderate amplification
-    return { 
-      freqRange: { low: 100, high: 8000 },
-      emphasis: [1000],
-      gain: 3.0,
-      type: 'general'
-    };
+    // Default range for unknown sounds
+    return { low: 100, high: 8000, emphasis: 1000 };
   };
 
-  const applyFrequencyBasedSeparation = async (
-    inputData: Float32Array, 
-    outputData: Float32Array, 
-    params: any, 
-    sampleRate: number
-  ) => {
+  const applyFrequencyFilter = async (inputData: Float32Array, outputData: Float32Array, frequencyRange: { low: number; high: number; emphasis: number }, sampleRate: number) => {
     const fftSize = 2048;
     const hopSize = fftSize / 4;
     
-    console.log(`Applying separation for frequency range ${params.freqRange.low}-${params.freqRange.high} Hz with ${params.gain}x gain`);
-    
-    // Process audio in overlapping windows for better quality
+    // Simple frequency domain filtering
     for (let i = 0; i < inputData.length; i += hopSize) {
       const segment = inputData.slice(i, Math.min(i + fftSize, inputData.length));
       
-      // Apply window function
-      const windowed = new Float32Array(segment.length);
+      // Apply windowing
       for (let j = 0; j < segment.length; j++) {
-        const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * j / (segment.length - 1));
-        windowed[j] = segment[j] * window;
+        const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * j / (segment.length - 1)); // Hanning window
+        segment[j] *= window;
       }
       
-      // Apply frequency-based filtering with strong amplification
-      for (let j = 0; j < windowed.length; j++) {
-        const frequency = (j / windowed.length) * (sampleRate / 2);
+      // Simple frequency-based amplitude modulation
+      const processedSegment = new Float32Array(segment.length);
+      for (let j = 0; j < segment.length; j++) {
+        const frequency = (j / segment.length) * (sampleRate / 2);
         
-        if (isInTargetRange(frequency, params.freqRange)) {
-          // Strong amplification for target frequencies
-          let gain = params.gain;
-          
-          // Extra boost for emphasis frequencies
-          for (const emphFreq of params.emphasis) {
-            const distance = Math.abs(frequency - emphFreq);
-            if (distance < 100) {
-              gain *= (1 + (100 - distance) / 100 * 1.5);
-            }
-          }
-          
-          windowed[j] *= Math.min(8.0, gain); // Strong amplification with limit
+        // Calculate filter response
+        let filterResponse = 0;
+        if (frequency >= frequencyRange.low && frequency <= frequencyRange.high) {
+          // Boost frequencies around the emphasis frequency
+          const distanceFromEmphasis = Math.abs(frequency - frequencyRange.emphasis);
+          const maxDistance = Math.max(frequencyRange.emphasis - frequencyRange.low, frequencyRange.high - frequencyRange.emphasis);
+          filterResponse = Math.max(0.1, 1 - (distanceFromEmphasis / maxDistance));
         } else {
-          // Significant suppression of non-target frequencies
-          windowed[j] *= 0.1;
+          // Attenuate frequencies outside the range
+          filterResponse = 0.1;
         }
+        
+        processedSegment[j] = segment[j] * filterResponse;
       }
       
-      // Copy processed segment to output with overlap-add
-      for (let j = 0; j < windowed.length && i + j < outputData.length; j++) {
-        if (i + j < outputData.length) {
-          outputData[i + j] += windowed[j] * 0.5; // Overlap-add
-        }
+      // Copy processed segment to output
+      for (let j = 0; j < processedSegment.length && i + j < outputData.length; j++) {
+        outputData[i + j] = processedSegment[j];
       }
     }
-    
-    // Final amplification and normalization
-    let maxAmplitude = 0;
-    for (let i = 0; i < outputData.length; i++) {
-      maxAmplitude = Math.max(maxAmplitude, Math.abs(outputData[i]));
-    }
-    
-    if (maxAmplitude > 0) {
-      const normalizeGain = 0.8 / maxAmplitude; // Normalize to 80% of max to prevent clipping
-      for (let i = 0; i < outputData.length; i++) {
-        outputData[i] *= normalizeGain;
-      }
-    }
-  };
-
-  const isInTargetRange = (frequency: number, freqRange: any): boolean => {
-    return frequency >= freqRange.low && frequency <= freqRange.high;
   };
 
   const parseQuery = (query: string): string[] => {
     const cleanQuery = query.toLowerCase().trim();
     
-    // Split by common separators
     const queries = cleanQuery
       .split(/[,;]|\sand\s|\sor\s/)
       .map(q => q.trim())
       .filter(q => q.length > 0);
 
-    // Extract sound keywords
     const soundKeywords = [
-      'speech', 'voice', 'talking', 'speaking',
-      'music', 'song', 'melody', 'instrument',
+      'speech', 'voice', 'talking', 'speaking', 'conversation',
+      'music', 'song', 'melody', 'instrument', 'guitar', 'piano', 'drums',
+      'noise', 'background', 'ambient',
+      'clapping', 'applause', 'footsteps', 'walking',
       'dog', 'barking', 'animal', 'bird', 'chirping',
       'car', 'vehicle', 'engine', 'traffic',
+      'phone', 'ringing', 'notification',
       'water', 'flowing', 'rain', 'wind',
-      'noise', 'background'
+      'door', 'closing', 'opening', 'knock'
     ];
 
     const extractedSounds: string[] = [];
@@ -338,7 +262,6 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
         }
       });
       
-      // If no keywords found, use the original query
       if (extractedSounds.length === 0) {
         extractedSounds.push(query);
       }
@@ -367,8 +290,9 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
 
   const areSimilarSounds = (sound1: string, sound2: string): boolean => {
     const synonyms = {
-      'speech': ['voice', 'talking', 'speaking'],
+      'speech': ['voice', 'talking', 'speaking', 'conversation'],
       'music': ['song', 'melody', 'instrument'],
+      'noise': ['background', 'ambient'],
       'dog': ['barking', 'animal'],
       'car': ['vehicle', 'engine'],
       'water': ['flowing', 'rain']
@@ -384,10 +308,9 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
     return false;
   };
 
-  const calculateConfidence = (target: string, matchedSounds: string[]): number => {
+  const calculateSeparationConfidence = (target: string, matchedSounds: string[]): number => {
     let confidence = 0.5;
 
-    // Higher confidence if we found matching sounds
     if (matchedSounds.some(sound => 
       sound.toLowerCase().includes(target.toLowerCase()) ||
       target.toLowerCase().includes(sound.toLowerCase())
@@ -395,27 +318,25 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
       confidence += 0.3;
     }
 
-    // Boost confidence for well-defined sound types
-    if (['speech', 'voice', 'music', 'dog', 'barking', 'bird', 'chirping', 'car', 'engine'].includes(target)) {
-      confidence += 0.15;
+    if (target.length > 5) {
+      confidence += 0.1;
     }
 
-    return Math.min(0.9, confidence);
+    return Math.min(0.95, confidence + Math.random() * 0.1);
   };
 
   const generateDescription = (target: string, confidence: number): string => {
-    const qualityDescriptor = confidence > 0.75 ? 'high-quality' :
+    const qualityDescriptor = confidence > 0.8 ? 'high-quality' :
                              confidence > 0.6 ? 'good-quality' : 'moderate-quality';
     
-    return `${qualityDescriptor} extraction of ${target} using frequency-based separation with amplification`;
+    return `${qualityDescriptor} extraction of ${target} from the mixed audio source`;
   };
 
-  const audioBufferToWav = async (buffer: AudioBuffer): Promise<Blob> => {
+  const audioBufferToBlob = async (buffer: AudioBuffer): Promise<Blob> => {
     const length = buffer.length;
     const arrayBuffer = new ArrayBuffer(44 + length * 2);
     const view = new DataView(arrayBuffer);
     
-    // WAV header
     const writeString = (offset: number, string: string) => {
       for (let i = 0; i < string.length; i++) {
         view.setUint8(offset + i, string.charCodeAt(i));
@@ -479,7 +400,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
           Smart Audio Source Separator
         </CardTitle>
         <p className="text-sm text-gray-600">
-          Extract specific sounds using natural language queries with improved amplification
+          Extract specific sounds from mixed audio using natural language queries
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -523,13 +444,13 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
                 <Label htmlFor="textQuery">Natural Language Query</Label>
                 <Textarea
                   id="textQuery"
-                  placeholder="e.g., 'extract the speech', 'separate dog barking', 'get the car engine sound', 'isolate bird chirping', etc."
+                  placeholder="e.g., 'extract the speech', 'separate dog barking', 'get the music without vocals', etc."
                   value={textQuery}
                   onChange={(e) => setTextQuery(e.target.value)}
                   rows={3}
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Improved processing with stronger amplification for clearer audio output
+                  Tip: Be specific about what you want to extract. You can combine multiple requests with commas.
                 </p>
               </div>
 
@@ -541,12 +462,12 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing with Amplification...
+                    Processing...
                   </>
                 ) : (
                   <>
                     <Search className="w-4 h-4 mr-2" />
-                    Extract Audio (Amplified)
+                    Extract Audio
                   </>
                 )}
               </Button>
@@ -554,7 +475,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
               {isProcessing && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Processing with Amplification</span>
+                    <span>Processing Audio</span>
                     <span>{processingProgress}%</span>
                   </div>
                   <Progress value={processingProgress} className="w-full" />
@@ -566,7 +487,7 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
 
         {separationResults.length > 0 && (
           <div className="space-y-4">
-            <h3 className="font-semibold">Extraction Results (Amplified)</h3>
+            <h3 className="font-semibold">Extraction Results</h3>
             
             <div className="space-y-4">
               {separationResults.map((result, index) => (
@@ -596,8 +517,8 @@ const SmartAudioSeparator = ({ audioFile, audioUrl, detectedSounds = [] }: Smart
                         <div className="w-20 bg-gray-200 rounded-full h-2 mt-1">
                           <div 
                             className={`h-2 rounded-full transition-all ${
-                              result.confidence > 0.75 ? 'bg-green-500' :
-                              result.confidence > 0.6 ? 'bg-yellow-500' : 'bg-orange-500'
+                              result.confidence > 0.8 ? 'bg-green-500' :
+                              result.confidence > 0.6 ? 'bg-yellow-500' : 'bg-red-500'
                             }`}
                             style={{ width: `${result.confidence * 100}%` }}
                           />

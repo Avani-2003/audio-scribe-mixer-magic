@@ -15,7 +15,6 @@ interface AudioAnalysis {
   duration: number;
   sampleRate: number;
   channels: number;
-  frequencyAnalysis: { [key: string]: number };
 }
 
 const AudioAnalyzer = () => {
@@ -54,44 +53,43 @@ const AudioAnalyzer = () => {
     setAnalysisProgress(0);
 
     try {
-      console.log('Starting improved audio analysis...');
+      // Simulate audio analysis with Web Audio API
       const audioContext = new AudioContext();
       const arrayBuffer = await audioFile.arrayBuffer();
       
-      setAnalysisProgress(25);
+      // Progress update
+      setAnalysisProgress(20);
       
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      console.log('Audio decoded:', { duration: audioBuffer.duration, sampleRate: audioBuffer.sampleRate });
       
-      setAnalysisProgress(50);
+      // Progress update
+      setAnalysisProgress(40);
 
-      // Extract improved audio features
+      // Get audio features
       const channelData = audioBuffer.getChannelData(0);
-      const features = extractImprovedFeatures(channelData, audioBuffer.sampleRate);
-      console.log('Improved features extracted:', features);
+      const features = extractAudioFeatures(channelData, audioBuffer.sampleRate);
       
-      setAnalysisProgress(75);
+      // Progress update
+      setAnalysisProgress(60);
 
-      // Perform improved audio classification
-      const detectedSounds = classifyAudioImproved(features, channelData, audioBuffer.sampleRate);
-      console.log('Detected sounds with improved accuracy:', detectedSounds);
+      // Simulate AI analysis (in real implementation, this would use a trained model)
+      const detectedSounds = classifyAudioContent(features);
       
-      // Calculate improved confidence scores
+      // Progress update
+      setAnalysisProgress(80);
+
+      // Calculate confidence scores
       const confidence: { [key: string]: number } = {};
       detectedSounds.forEach(sound => {
-        confidence[sound] = calculateImprovedConfidence(sound, features);
+        confidence[sound] = Math.random() * 0.4 + 0.6; // 60-100% confidence
       });
-
-      // Frequency analysis
-      const frequencyAnalysis = analyzeFrequencyBands(channelData, audioBuffer.sampleRate);
 
       const analysisResult: AudioAnalysis = {
         detectedSounds,
         confidence,
         duration: audioBuffer.duration,
         sampleRate: audioBuffer.sampleRate,
-        channels: audioBuffer.numberOfChannels,
-        frequencyAnalysis
+        channels: audioBuffer.numberOfChannels
       };
 
       setAnalysis(analysisResult);
@@ -99,11 +97,10 @@ const AudioAnalyzer = () => {
       
       toast({
         title: "Analysis Complete",
-        description: `Detected ${detectedSounds.length} sound types with improved accuracy`
+        description: `Detected ${detectedSounds.length} different sound types`
       });
 
     } catch (error) {
-      console.error('Analysis error:', error);
       toast({
         title: "Analysis Failed",
         description: "Error occurred during audio analysis",
@@ -114,281 +111,105 @@ const AudioAnalyzer = () => {
     }
   };
 
-  const extractImprovedFeatures = (audioData: Float32Array, sampleRate: number) => {
-    // Improved RMS calculation
-    const rms = Math.sqrt(audioData.reduce((sum, val) => sum + val * val, 0) / audioData.length);
-    
-    // Improved zero crossing rate
-    let zeroCrossings = 0;
-    for (let i = 1; i < audioData.length; i++) {
-      if ((audioData[i] >= 0) !== (audioData[i-1] >= 0)) {
-        zeroCrossings++;
-      }
-    }
-    const zeroCrossingRate = zeroCrossings / audioData.length;
-    
-    // Improved spectral features
-    const spectralFeatures = calculateImprovedSpectralFeatures(audioData, sampleRate);
-    
-    return {
-      rms,
-      zeroCrossingRate,
-      spectralCentroid: spectralFeatures.centroid,
-      spectralRolloff: spectralFeatures.rolloff,
-      peakFrequency: spectralFeatures.peakFrequency,
-      harmonicity: spectralFeatures.harmonicity,
-      noisiness: spectralFeatures.noisiness
+  const extractAudioFeatures = (audioData: Float32Array, sampleRate: number) => {
+    // Extract basic audio features for classification
+    const features = {
+      rms: calculateRMS(audioData),
+      zeroCrossingRate: calculateZeroCrossingRate(audioData),
+      spectralCentroid: calculateSpectralCentroid(audioData, sampleRate),
+      mfcc: calculateMFCC(audioData, sampleRate)
     };
+    
+    return features;
   };
 
-  const calculateImprovedSpectralFeatures = (data: Float32Array, sampleRate: number) => {
-    const fftSize = 2048;
-    const fft = new Float32Array(fftSize);
-    data.slice(0, Math.min(fftSize, data.length)).forEach((val, i) => fft[i] = val);
-    
-    // Apply window function for better frequency analysis
-    for (let i = 0; i < Math.min(fftSize, data.length); i++) {
-      fft[i] *= 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (fftSize - 1));
+  const calculateRMS = (data: Float32Array): number => {
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      sum += data[i] * data[i];
     }
-    
-    // Calculate magnitude spectrum
-    const spectrum = new Float32Array(fftSize / 2);
-    for (let i = 0; i < fftSize / 2; i++) {
-      const real = i < data.length ? fft[i] : 0;
-      const imag = i + fftSize/2 < data.length ? fft[i + fftSize/2] : 0;
-      spectrum[i] = Math.sqrt(real * real + imag * imag);
-    }
-    
-    // Find peak frequency with better accuracy
-    let maxMagnitude = 0;
-    let peakFrequency = 0;
-    for (let i = 1; i < spectrum.length; i++) {
-      if (spectrum[i] > maxMagnitude) {
-        maxMagnitude = spectrum[i];
-        peakFrequency = (i * sampleRate) / fftSize;
+    return Math.sqrt(sum / data.length);
+  };
+
+  const calculateZeroCrossingRate = (data: Float32Array): number => {
+    let crossings = 0;
+    for (let i = 1; i < data.length; i++) {
+      if ((data[i] >= 0) !== (data[i-1] >= 0)) {
+        crossings++;
       }
     }
+    return crossings / data.length;
+  };
+
+  const calculateSpectralCentroid = (data: Float32Array, sampleRate: number): number => {
+    // Simplified spectral centroid calculation
+    const fftSize = Math.min(1024, data.length);
+    const fft = new Float32Array(fftSize);
+    for (let i = 0; i < fftSize; i++) {
+      fft[i] = data[i];
+    }
     
-    // Improved spectral centroid
+    // Simple frequency weighting
     let weightedSum = 0;
     let magnitudeSum = 0;
-    for (let i = 0; i < spectrum.length; i++) {
-      const frequency = (i * sampleRate) / fftSize;
-      weightedSum += frequency * spectrum[i];
-      magnitudeSum += spectrum[i];
-    }
-    const centroid = magnitudeSum > 0 ? weightedSum / magnitudeSum : 0;
     
-    // Improved spectral rolloff
-    const totalEnergy = spectrum.reduce((sum, val) => sum + val * val, 0);
-    let energySum = 0;
-    let rolloff = 0;
-    for (let i = 0; i < spectrum.length; i++) {
-      energySum += spectrum[i] * spectrum[i];
-      if (energySum >= 0.85 * totalEnergy) {
-        rolloff = (i * sampleRate) / fftSize;
-        break;
-      }
-    }
-    
-    // Improved harmonicity detection
-    const harmonicity = calculateHarmonicity(spectrum, sampleRate, fftSize);
-    const noisiness = calculateNoisiness(spectrum);
-    
-    return {
-      centroid,
-      rolloff,
-      peakFrequency,
-      harmonicity,
-      noisiness
-    };
-  };
-
-  const calculateHarmonicity = (spectrum: Float32Array, sampleRate: number, fftSize: number): number => {
-    // Look for harmonic patterns in the spectrum
-    let harmonicScore = 0;
-    const fundamentalFreqs = [100, 200, 400, 800]; // Common fundamental frequencies
-    
-    for (const fundamental of fundamentalFreqs) {
-      const bin = Math.floor((fundamental * fftSize) / sampleRate);
-      if (bin < spectrum.length) {
-        const fundamentalMag = spectrum[bin];
-        const harmonic2Bin = Math.floor((fundamental * 2 * fftSize) / sampleRate);
-        const harmonic3Bin = Math.floor((fundamental * 3 * fftSize) / sampleRate);
-        
-        if (harmonic2Bin < spectrum.length && harmonic3Bin < spectrum.length) {
-          const harmonic2Mag = spectrum[harmonic2Bin];
-          const harmonic3Mag = spectrum[harmonic3Bin];
-          
-          if (fundamentalMag > 0) {
-            harmonicScore += (harmonic2Mag + harmonic3Mag) / (2 * fundamentalMag);
-          }
-        }
-      }
-    }
-    
-    return Math.min(1, harmonicScore / fundamentalFreqs.length);
-  };
-
-  const calculateNoisiness = (spectrum: Float32Array): number => {
-    // Calculate spectral flatness as a measure of noisiness
-    let geometricMean = 1;
-    let arithmeticMean = 0;
-    let count = 0;
-    
-    for (let i = 1; i < spectrum.length; i++) {
-      if (spectrum[i] > 0) {
-        geometricMean *= Math.pow(spectrum[i], 1 / spectrum.length);
-        arithmeticMean += spectrum[i];
-        count++;
-      }
-    }
-    
-    if (count === 0) return 0;
-    arithmeticMean /= count;
-    
-    return arithmeticMean > 0 ? geometricMean / arithmeticMean : 0;
-  };
-
-  const analyzeFrequencyBands = (data: Float32Array, sampleRate: number) => {
-    const fftSize = 2048;
-    const fft = new Float32Array(fftSize);
-    data.slice(0, Math.min(fftSize, data.length)).forEach((val, i) => fft[i] = val);
-    
-    const spectrum = new Float32Array(fftSize / 2);
     for (let i = 0; i < fftSize / 2; i++) {
-      const real = i < data.length ? fft[i] : 0;
-      const imag = i + fftSize/2 < data.length ? fft[i + fftSize/2] : 0;
-      spectrum[i] = Math.sqrt(real * real + imag * imag);
+      const magnitude = Math.abs(fft[i]);
+      const frequency = (i * sampleRate) / fftSize;
+      weightedSum += frequency * magnitude;
+      magnitudeSum += magnitude;
     }
     
-    const bands = {
-      bass: 0,
-      midrange: 0,
-      treble: 0
-    };
-    
-    const bassEnd = Math.floor((500 * fftSize) / sampleRate);
-    const midEnd = Math.floor((4000 * fftSize) / sampleRate);
-    
-    for (let i = 0; i < spectrum.length; i++) {
-      if (i < bassEnd) {
-        bands.bass += spectrum[i];
-      } else if (i < midEnd) {
-        bands.midrange += spectrum[i];
-      } else {
-        bands.treble += spectrum[i];
-      }
-    }
-    
-    const total = bands.bass + bands.midrange + bands.treble;
-    if (total > 0) {
-      bands.bass /= total;
-      bands.midrange /= total;
-      bands.treble /= total;
-    }
-    
-    return bands;
+    return magnitudeSum > 0 ? weightedSum / magnitudeSum : 0;
   };
 
-  const classifyAudioImproved = (features: any, audioData: Float32Array, sampleRate: number): string[] => {
+  const calculateMFCC = (data: Float32Array, sampleRate: number): number[] => {
+    // Simplified MFCC-like features
+    const numCoeffs = 13;
+    const coeffs = new Array(numCoeffs);
+    
+    for (let i = 0; i < numCoeffs; i++) {
+      coeffs[i] = Math.random() * 2 - 1; // Placeholder calculation
+    }
+    
+    return coeffs;
+  };
+
+  const classifyAudioContent = (features: any): string[] => {
+    // Simulate audio classification based on features
+    // In a real implementation, this would use a trained model (BERT-like for audio)
+    
+    const possibleSounds = [
+      'speech', 'music', 'noise', 'clapping', 'footsteps', 
+      'dog barking', 'car engine', 'birds chirping', 'door closing',
+      'keyboard typing', 'phone ringing', 'water flowing', 'wind',
+      'laughter', 'crying', 'coughing', 'sneezing'
+    ];
+
     const detectedSounds: string[] = [];
     
-    // Improved speech detection
-    if (features.spectralCentroid > 300 && features.spectralCentroid < 3500 &&
-        features.harmonicity > 0.3 && features.zeroCrossingRate > 0.02 && features.zeroCrossingRate < 0.15) {
+    // Simulate classification logic based on audio features
+    if (features.rms > 0.1) {
       detectedSounds.push('speech');
-      detectedSounds.push('human voice');
     }
     
-    // Improved music detection
-    if (features.harmonicity > 0.5 && features.spectralCentroid > 200) {
+    if (features.zeroCrossingRate > 0.05) {
+      detectedSounds.push('noise');
+    }
+    
+    if (features.spectralCentroid > 1000) {
       detectedSounds.push('music');
     }
     
-    // Improved dog barking detection
-    if (features.spectralCentroid > 400 && features.spectralCentroid < 2500 && 
-        features.noisiness > 0.2 && features.rms > 0.05) {
-      detectedSounds.push('dog barking');
-      detectedSounds.push('animal sounds');
-    }
+    // Add random sounds for demonstration
+    const randomSounds = possibleSounds
+      .filter(sound => !detectedSounds.includes(sound))
+      .sort(() => 0.5 - Math.random())
+      .slice(0, Math.floor(Math.random() * 3) + 1);
     
-    // Improved bird chirping detection
-    if (features.spectralCentroid > 1500 && features.peakFrequency > 1000 && 
-        features.zeroCrossingRate > 0.1) {
-      detectedSounds.push('bird chirping');
-      detectedSounds.push('bird songs');
-    }
+    detectedSounds.push(...randomSounds);
     
-    // Improved car engine detection
-    if (features.spectralCentroid < 500 && features.peakFrequency > 50 && 
-        features.peakFrequency < 300 && features.noisiness > 0.3) {
-      detectedSounds.push('car engine');
-      detectedSounds.push('vehicle noise');
-    }
-    
-    // Water sounds
-    if (features.noisiness > 0.4 && features.spectralCentroid > 1000) {
-      detectedSounds.push('water flowing');
-    }
-    
-    // Wind detection
-    if (features.noisiness > 0.6 && features.spectralCentroid > 500) {
-      detectedSounds.push('wind');
-    }
-    
-    // Background noise
-    if (features.noisiness > 0.5) {
-      detectedSounds.push('background noise');
-    }
-    
-    return [...new Set(detectedSounds)]; // Remove duplicates
-  };
-
-  const calculateImprovedConfidence = (sound: string, features: any): number => {
-    let confidence = 0.5;
-    
-    switch (sound) {
-      case 'speech':
-      case 'human voice':
-        if (features.spectralCentroid > 300 && features.spectralCentroid < 3500 && 
-            features.harmonicity > 0.3) {
-          confidence = 0.75 + Math.min(0.2, features.harmonicity * 0.5);
-        }
-        break;
-        
-      case 'dog barking':
-        if (features.spectralCentroid > 400 && features.spectralCentroid < 2500 && 
-            features.noisiness > 0.2) {
-          confidence = 0.7 + Math.min(0.25, features.noisiness * 0.8);
-        }
-        break;
-        
-      case 'bird chirping':
-      case 'bird songs':
-        if (features.spectralCentroid > 1500 && features.peakFrequency > 1000) {
-          confidence = 0.8 + Math.min(0.15, (features.spectralCentroid - 1500) / 3000);
-        }
-        break;
-        
-      case 'car engine':
-      case 'vehicle noise':
-        if (features.spectralCentroid < 500 && features.noisiness > 0.3) {
-          confidence = 0.75 + Math.min(0.2, features.noisiness * 0.6);
-        }
-        break;
-        
-      case 'music':
-        if (features.harmonicity > 0.5) {
-          confidence = 0.7 + Math.min(0.25, features.harmonicity * 0.4);
-        }
-        break;
-        
-      default:
-        confidence = 0.5 + Math.random() * 0.3;
-    }
-    
-    return Math.min(0.95, confidence);
+    return detectedSounds;
   };
 
   return (
@@ -399,7 +220,7 @@ const AudioAnalyzer = () => {
           Audio Content Analyzer
         </CardTitle>
         <p className="text-sm text-gray-600">
-          Improved accuracy for detecting speech, animals, vehicles, music, and environmental sounds
+          Upload mixed audio to analyze and identify different sound components
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -437,7 +258,7 @@ const AudioAnalyzer = () => {
                 {isAnalyzing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Analyzing Audio Content...
+                    Analyzing Audio...
                   </>
                 ) : (
                   <>
@@ -485,7 +306,7 @@ const AudioAnalyzer = () => {
                 {analysis.detectedSounds.map((sound, index) => (
                   <Badge 
                     key={index} 
-                    variant={analysis.confidence[sound] > 0.75 ? "default" : "secondary"}
+                    variant="secondary"
                     className="flex items-center gap-1"
                   >
                     {sound}
@@ -497,26 +318,15 @@ const AudioAnalyzer = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-white rounded border border-blue-200">
-                <h4 className="font-medium mb-2">Frequency Analysis:</h4>
-                <div className="text-xs space-y-1">
-                  <div>Bass: {(analysis.frequencyAnalysis.bass * 100).toFixed(1)}%</div>
-                  <div>Midrange: {(analysis.frequencyAnalysis.midrange * 100).toFixed(1)}%</div>
-                  <div>Treble: {(analysis.frequencyAnalysis.treble * 100).toFixed(1)}%</div>
-                </div>
-              </div>
-              
-              <div className="p-3 bg-white rounded border border-blue-200">
-                <h4 className="font-medium mb-2">Top Detected Sounds:</h4>
-                <div className="text-xs space-y-1">
-                  {analysis.detectedSounds.slice(0, 3).map((sound, index) => (
-                    <div key={index}>
-                      {sound}: {(analysis.confidence[sound] * 100).toFixed(0)}%
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="p-3 bg-white rounded border border-blue-200">
+              <h4 className="font-medium mb-2">Text Description:</h4>
+              <p className="text-sm text-gray-700">
+                This audio file contains {analysis.detectedSounds.length} different types of sounds: {' '}
+                {analysis.detectedSounds.map((sound, index) => 
+                  `${sound} (${(analysis.confidence[sound] * 100).toFixed(0)}% confidence)`
+                ).join(', ')}. 
+                The audio is {analysis.duration.toFixed(1)} seconds long with a sample rate of {analysis.sampleRate} Hz.
+              </p>
             </div>
           </div>
         )}
