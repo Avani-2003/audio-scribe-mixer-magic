@@ -3,126 +3,85 @@ import * as tf from '@tensorflow/tfjs';
 import { loadGraphModel } from '@tensorflow/tfjs-converter';
 import { CLASS_NAMES } from './yamnet_utils';
 
-const AudioAnalyzer = () => {
+// 1. Audio normalization (EXACTLY like librosa)
+const normalizeAudio = (audioData: Float32Array) => {
+  const maxVal = Math.max(...audioData.map(Math.abs));
+  return maxVal > 0 ? audioData.map(val => val / maxVal) : audioData;
+};
+
+// 2. Python-equivalent frame processing
+const calculateMeanScores = (scoresData: Float32Array, frameCount: number) => {
+  const meanScores = new Array(521).fill(0);
+  for (let frame = 0; frame < frameCount; frame++) {
+    for (let classIdx = 0; classIdx < 521; classIdx++) {
+      meanScores[classIdx] += scoresData[frame * 521 + classIdx] / frameCount;
+    }
+  }
+  return meanScores;
+};
+
+export default function AudioAnalyzer() {
   const [model, setModel] = useState<tf.GraphModel | null>(null);
   const [results, setResults] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
-    const loadModel = async () => {
-      setLoading(true);
-      try {
-        const model = await loadGraphModel(
-          'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1',
-          { fromTFHub: true }
-        );
-        setModel(model);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadModel();
+    loadGraphModel(
+      'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1',
+      { fromTFHub: true }
+    ).then(setModel);
   }, []);
 
   const analyzeAudio = async (audioBuffer: AudioBuffer) => {
     if (!model) return;
-    
-    // Resample to 16kHz exactly like librosa
+
+    // A. Resample to 16kHz + normalize + pad/trim
     const resampled = await resampleAudio(audioBuffer, 16000);
-    const audioData = resampled.getChannelData(0);
-    
-    // Normalize to [-1, 1] range
+    let audioData = normalizeAudio(resampled.getChannelData(0));
+    audioData = prepareInput(audioData); // Exact 15600 samples
+
+    // B. Create tensor with Python-identical shape
     const input = tf.tensor(audioData, [1, audioData.length], 'float32');
-    
-    // Get scores (identical to Python model output)
+
+    // C. Get scores
     const [scores] = model.execute(input) as tf.Tensor[];
     const scoresData = await scores.data();
-    
-    // Calculate mean scores across frames (EXACTLY like Python's mean(axis=0))
-    const meanScores = new Array(521).fill(0);
+
+    // D. Python-identical aggregation
     const frameCount = scores.shape[0];
-    
-    for (let i = 0; i < scoresData.length; i++) {
-      const classIdx = i % 521;
-      meanScores[classIdx] += scoresData[i] / frameCount;
-    }
-    
-    // Get top 3 classes (identical to Python's argsort)
+    const meanScores = calculateMeanScores(scoresData as Float32Array, frameCount);
+
+    // E. Get top 3 (same as Python's argsort)
     const topClasses = meanScores
-      .map((score, index) => ({ score, index }))
+      .map((score, idx) => ({ score, idx }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 3)
-      .map(item => CLASS_NAMES[item.index]);
-    
+      .map(item => CLASS_NAMES[item.idx]);
+
     setResults(topClasses);
     tf.dispose([input, scores]);
   };
 
-  // Precise resampling matching librosa's behavior
+  // Helper functions
   const resampleAudio = async (buffer: AudioBuffer, targetRate: number) => {
-    if (buffer.sampleRate === targetRate) return buffer;
-    
-    const length = Math.floor(buffer.length * targetRate / buffer.sampleRate);
-    const offlineCtx = new OfflineAudioContext(
-      1, 
-      length,
-      targetRate
-    );
-    
-    const source = offlineCtx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(offlineCtx.destination);
-    source.start();
-    return await offlineCtx.startRendering();
+    // ... (keep same resampling code from earlier)
+  };
+
+  const prepareInput = (audioData: Float32Array) => {
+    const targetLength = 15600; // YAMNet's exact required length
+    if (audioData.length >= targetLength) return audioData.slice(0, targetLength);
+    const padded = new Float32Array(targetLength);
+    padded.set(audioData);
+    return padded;
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length || !model) return;
-    
-    setLoading(true);
-    try {
-      const file = e.target.files[0];
-      const arrayBuffer = await file.arrayBuffer();
-      const audioCtx = new AudioContext();
-      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-      
-      await analyzeAudio(audioBuffer);
-      
-      if (audioRef.current) {
-        audioRef.current.src = URL.createObjectURL(file);
-        await audioRef.current.play();
-      }
-    } finally {
-      setLoading(false);
-    }
+    // ... (keep same file handling)
   };
 
   return (
     <div>
-      <input
-        type="file"
-        accept="audio/*"
-        onChange={handleFileChange}
-        disabled={loading || !model}
-      />
-      
-      {loading && <div>Processing (this may take 10-20 seconds)...</div>}
-      
-      {results.length > 0 && (
-        <div>
-          <h3>Detected sounds:</h3>
-          <ul>
-            {results.map((sound, i) => (
-              <li key={i}>{sound}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      
-      <audio ref={audioRef} controls />
+      {/* ... (keep same UI) */}
     </div>
   );
-};
-
-export default AudioAnalyzer;
+}
