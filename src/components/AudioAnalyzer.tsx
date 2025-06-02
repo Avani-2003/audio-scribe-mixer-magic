@@ -1,254 +1,189 @@
+import React, { useState, useRef, useEffect } from 'react';
+import * as tf from '@tensorflow/tfjs';
+import { loadGraphModel } from '@tensorflow/tfjs-converter';
+import * as yamnet from './yamnet_utils'; // You'll need to create this utility file
 
-import React, { useState, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Upload, FileAudio, Brain, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-
-interface AudioAnalysis {
+interface AudioAnalysisResult {
   detectedSounds: string[];
-  confidence: { [key: string]: number };
-  duration: number;
-  sampleRate: number;
-  channels: number;
-  description: string;
+  probabilities: number[];
+  spectrogram: Float32Array[];
 }
 
-const AudioAnalyzer = () => {
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<AudioAnalysis | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisProgress, setAnalysisProgress] = useState(0);
+const AudioAnalyzer: React.FC = () => {
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [model, setModel] = useState<tf.GraphModel | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AudioAnalysisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type.startsWith('audio/')) {
-      setAudioFile(file);
-      const url = URL.createObjectURL(file);
-      setAudioUrl(url);
-      setAnalysis(null);
-      toast({
-        title: "Audio File Loaded",
-        description: `${file.name} is ready for YAMNet analysis`
-      });
-    } else {
-      toast({
-        title: "Invalid File",
-        description: "Please upload a valid audio file",
-        variant: "destructive"
-      });
+  // Load YAMnet model on component mount
+  useEffect(() => {
+    const loadModel = async () => {
+      setIsLoading(true);
+      try {
+        const MODEL_URL = 'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1';
+        const model = await loadGraphModel(MODEL_URL);
+        setModel(model);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to load model:', err);
+        setError('Failed to load the YAMnet model. Please try again later.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadModel();
+  }, []);
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || !model) return;
+
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    try {
+      // Process audio file
+      const audioBuffer = await processAudioFile(file);
+      
+      // Run inference
+      const result = await analyzeAudio(audioBuffer);
+      setAnalysisResult(result);
+      setError(null);
+
+      // Play the audio
+      if (audioRef.current) {
+        audioRef.current.src = URL.createObjectURL(file);
+        audioRef.current.play().catch(e => console.error('Audio play failed:', e));
+      }
+    } catch (err) {
+      console.error('Audio analysis failed:', err);
+      setError('Failed to analyze the audio file. Please try another file.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const analyzeAudio = async () => {
-    if (!audioFile || !audioUrl) return;
+  const processAudioFile = async (file: File): Promise<AudioBuffer> => {
+    return new Promise((resolve, reject) => {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const reader = new FileReader();
 
-    setIsAnalyzing(true);
-    setAnalysisProgress(0);
-
-    try {
-      // Initialize Web Audio API (simulating librosa.load)
-      const audioContext = new AudioContext();
-      const arrayBuffer = await audioFile.arrayBuffer();
-      
-      setAnalysisProgress(25);
-      
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      
-      setAnalysisProgress(50);
-
-      // Simulate YAMNet model processing
-      // In real implementation, this would be: yamnet_model(audio)
-      // For demo, we simulate the top 3 detected sounds as per your code
-      const yamnetDetectedSounds = [
-        'Speech', 'Music', 'Environmental sounds', 'Vehicle', 'Bird vocalization', 
-        'Telephone', 'Applause', 'Laughter', 'Cough', 'Sneeze'
-      ];
-      
-      // Simulate top_class_indices = scores.numpy().mean(axis=0).argsort()[-3:][::-1]
-      const numDetected = Math.floor(Math.random() * 3) + 2; // 2-4 sounds
-      const detectedSounds = yamnetDetectedSounds
-        .sort(() => 0.5 - Math.random())
-        .slice(0, numDetected);
-
-      setAnalysisProgress(75);
-
-      // Create confidence scores for detected sounds
-      const confidence: { [key: string]: number } = {};
-      detectedSounds.forEach(sound => {
-        confidence[sound] = 0.60 + Math.random() * 0.25; // 60-85% range
-      });
-
-      // Generate meaningful description following your pattern
-      const description = `Detected sounds: ${detectedSounds.join(', ')}.`;
-
-      const analysisResult: AudioAnalysis = {
-        detectedSounds: detectedSounds,
-        confidence: confidence,
-        duration: audioBuffer.duration,
-        sampleRate: audioBuffer.sampleRate,
-        channels: audioBuffer.numberOfChannels,
-        description: description
+      reader.onload = async (e) => {
+        try {
+          const arrayBuffer = e.target?.result as ArrayBuffer;
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          resolve(audioBuffer);
+        } catch (err) {
+          reject(err);
+        }
       };
 
-      setAnalysis(analysisResult);
-      setAnalysisProgress(100);
-      
-      toast({
-        title: "YAMNet Analysis Complete",
-        description: `Successfully identified ${detectedSounds.length} sound categories`
-      });
-
-    } catch (error) {
-      console.error('YAMNet analysis error:', error);
-      toast({
-        title: "Analysis Failed",
-        description: "Error occurred during YAMNet processing",
-        variant: "destructive"
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
   };
 
-  const generateSummary = (analysis: AudioAnalysis): string => {
-    const soundsWithConfidence = analysis.detectedSounds.map(sound => 
-      `${sound.toLowerCase()} (${(analysis.confidence[sound] * 100).toFixed(0)}% confidence)`
-    ).join(', ');
+  const analyzeAudio = async (audioBuffer: AudioBuffer): Promise<AudioAnalysisResult> => {
+    if (!model) throw new Error('Model not loaded');
 
-    return `This audio recording contains ${analysis.detectedSounds.length} distinct sound categories: ${soundsWithConfidence}. The analysis reveals a ${analysis.duration.toFixed(1)}-second audio clip recorded at ${analysis.sampleRate} Hz with ${analysis.channels} channel${analysis.channels > 1 ? 's' : ''}. YAMNet's deep learning model successfully classified these audio events with varying confidence levels.`;
+    // Resample to 16kHz (YAMnet's expected sample rate)
+    const resampledAudio = await resampleAudio(audioBuffer, 16000);
+    
+    // Convert to mono and normalize between -1 and 1
+    const audioData = convertToMono(resampledAudio.getChannelData(0));
+    
+    // The model expects a specific input shape
+    const input = tf.tensor(audioData, [1, audioData.length], 'float32');
+    
+    // Run inference
+    const outputs = model.execute(input) as tf.Tensor[];
+    const [scores, embeddings, spectrogram] = outputs;
+    
+    // Process results
+    const scoresData = await scores.data();
+    const classScores = Array.from(scoresData);
+    
+    // Get top 3 detected sounds
+    const topClasses = getTopKClasses(classScores, 3);
+    
+    // Clean up tensors to avoid memory leaks
+    tf.dispose([input, ...outputs]);
+    
+    return {
+      detectedSounds: topClasses.map(c => c.className),
+      probabilities: topClasses.map(c => c.probability),
+      spectrogram: spectrogram.arraySync() as Float32Array[]
+    };
+  };
+
+  const resampleAudio = async (audioBuffer: AudioBuffer, targetSampleRate: number): Promise<AudioBuffer> => {
+    const offlineCtx = new OfflineAudioContext(
+      audioBuffer.numberOfChannels,
+      audioBuffer.duration * targetSampleRate,
+      targetSampleRate
+    );
+    
+    const bufferSource = offlineCtx.createBufferSource();
+    bufferSource.buffer = audioBuffer;
+    bufferSource.connect(offlineCtx.destination);
+    bufferSource.start();
+    
+    return await offlineCtx.startRendering();
+  };
+
+  const convertToMono = (audioData: Float32Array): Float32Array => {
+    // Normalize between -1 and 1
+    const maxVal = Math.max(...audioData.map(Math.abs));
+    return audioData.map(val => val / maxVal);
+  };
+
+  const getTopKClasses = (scores: number[], k: number): {className: string; probability: number}[] => {
+    // This should use the actual YAMnet class names (you'll need to import them)
+    // For now, we'll use placeholder names
+    const classNames = yamnet.CLASS_NAMES; // You'll need to define this
+    
+    return scores
+      .map((score, index) => ({
+        className: classNames[index] || `Class ${index}`,
+        probability: score
+      }))
+      .sort((a, b) => b.probability - a.probability)
+      .slice(0, k);
   };
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="w-5 h-5" />
-          YAMNet Audio Event Classification
-        </CardTitle>
-        <p className="text-sm text-gray-600">
-          Upload audio files to analyze and identify sound events using Google's YAMNet deep learning model
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="audioFile">Upload Audio File for YAMNet Analysis</Label>
-            <Input
-              id="audioFile"
-              type="file"
-              accept="audio/*"
-              onChange={handleFileUpload}
-              className="cursor-pointer"
-            />
-          </div>
-
-          {audioUrl && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <FileAudio className="w-4 h-4" />
-                <span className="text-sm font-medium">{audioFile?.name}</span>
-              </div>
-              
-              <audio 
-                ref={audioRef}
-                src={audioUrl}
-                controls 
-                className="w-full"
-              />
-
-              <Button 
-                onClick={analyzeAudio}
-                disabled={isAnalyzing}
-                className="w-full"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Running YAMNet Classification...
-                  </>
-                ) : (
-                  <>
-                    <Brain className="w-4 h-4 mr-2" />
-                    Analyze with YAMNet
-                  </>
-                )}
-              </Button>
-
-              {isAnalyzing && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>YAMNet Processing</span>
-                    <span>{analysisProgress}%</span>
-                  </div>
-                  <Progress value={analysisProgress} className="w-full" />
-                </div>
-              )}
-            </div>
-          )}
+    <div className="audio-analyzer">
+      <h2>Audio Analysis with YAMnet</h2>
+      
+      {isLoading && <div className="loading">Loading model or analyzing audio...</div>}
+      {error && <div className="error">{error}</div>}
+      
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="audio/*"
+        disabled={isLoading || !model}
+      />
+      
+      {analysisResult && (
+        <div className="results">
+          <h3>Analysis Results:</h3>
+          <ul>
+            {analysisResult.detectedSounds.map((sound, index) => (
+              <li key={index}>
+                {sound}: {(analysisResult.probabilities[index] * 100).toFixed(1)}% confidence
+              </li>
+            ))}
+          </ul>
         </div>
-
-        {analysis && (
-          <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-semibold text-blue-800">YAMNet Classification Results</h3>
-            
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-medium">Duration:</span> {analysis.duration.toFixed(1)}s
-              </div>
-              <div>
-                <span className="font-medium">Sample Rate:</span> {analysis.sampleRate} Hz
-              </div>
-              <div>
-                <span className="font-medium">Channels:</span> {analysis.channels}
-              </div>
-              <div>
-                <span className="font-medium">Sound Categories:</span> {analysis.detectedSounds.length}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium">Detected Audio Events:</h4>
-              <p className="text-sm text-gray-700 bg-white p-3 rounded border">
-                {analysis.description}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium">Classification Confidence:</h4>
-              <div className="flex flex-wrap gap-2">
-                {analysis.detectedSounds.map((sound, index) => (
-                  <Badge 
-                    key={index} 
-                    variant="secondary"
-                    className="flex items-center gap-1 bg-blue-100 text-blue-800"
-                  >
-                    {sound}
-                    <span className="text-xs opacity-75">
-                      {(analysis.confidence[sound] * 100).toFixed(0)}%
-                    </span>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-3 bg-white rounded border border-blue-200">
-              <h4 className="font-medium mb-2">Analysis Summary:</h4>
-              <p className="text-sm text-gray-700">
-                {generateSummary(analysis)}
-              </p>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+      
+      <audio ref={audioRef} controls />
+    </div>
   );
 };
 
