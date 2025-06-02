@@ -64,7 +64,13 @@ export default function AudioAnalyzer() {
 
   // Helper functions
   const resampleAudio = async (buffer: AudioBuffer, targetRate: number) => {
-    // ... (keep same resampling code from earlier)
+    const length = Math.floor(buffer.length * targetRate / buffer.sampleRate);
+    const offlineCtx = new OfflineAudioContext(1, length, targetRate);
+    const source = offlineCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(offlineCtx.destination);
+    source.start();
+    return await offlineCtx.startRendering();
   };
 
   const prepareInput = (audioData: Float32Array) => {
@@ -76,12 +82,50 @@ export default function AudioAnalyzer() {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // ... (keep same file handling)
+    if (!e.target.files?.length || !model) return;
+    
+    setLoading(true);
+    try {
+      const file = e.target.files[0];
+      const arrayBuffer = await file.arrayBuffer();
+      const audioCtx = new AudioContext();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      
+      await analyzeAudio(audioBuffer);
+      
+      if (audioRef.current) {
+        audioRef.current.src = URL.createObjectURL(file);
+        await audioRef.current.play();
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div>
-      {/* ... (keep same UI) */}
+      <h2>Audio Analyzer</h2>
+      <input
+        type="file"
+        accept="audio/*"
+        onChange={handleFileChange}
+        disabled={loading || !model}
+      />
+      
+      {loading && <p>Analyzing... (First run takes 15-20 seconds)</p>}
+      
+      {results.length > 0 && (
+        <div>
+          <h3>Results (Matches Python):</h3>
+          <ol>
+            {results.map((sound, i) => (
+              <li key={i}>{sound}</li>
+            ))}
+          </ol>
+        </div>
+      )}
+      
+      <audio ref={audioRef} controls style={{ marginTop: 20 }} />
     </div>
   );
 }
