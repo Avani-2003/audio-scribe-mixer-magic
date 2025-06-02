@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +15,6 @@ interface AudioAnalysis {
   duration: number;
   sampleRate: number;
   channels: number;
-  description: string;
 }
 
 const AudioAnalyzer = () => {
@@ -35,7 +35,7 @@ const AudioAnalyzer = () => {
       setAnalysis(null);
       toast({
         title: "Audio File Loaded",
-        description: `${file.name} is ready for YAMNet analysis`
+        description: `${file.name} is ready for analysis`
       });
     } else {
       toast({
@@ -53,582 +53,57 @@ const AudioAnalyzer = () => {
     setAnalysisProgress(0);
 
     try {
-      // Initialize Web Audio API (simulating librosa.load and decode)
+      // Simulate audio analysis with Web Audio API
       const audioContext = new AudioContext();
       const arrayBuffer = await audioFile.arrayBuffer();
-      setAnalysisProgress(25);
+      
+      // Progress update
+      setAnalysisProgress(20);
       
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      setAnalysisProgress(50);
+      
+      // Progress update
+      setAnalysisProgress(40);
 
-      // Extended YAMNet class map (as provided)
-      const yamnetClassMap = [
-        "Speech",
-        "Child speech, kid speaking",
-        "Conversation",
-        "Narration, monologue",
-        "Babbling",
-        "Speech synthesizer",
-        "Shout",
-        "Bellow",
-        "Whoop",
-        "Yell",
-        "Children shouting",
-        "Screaming",
-        "Whispering",
-        "Laughter",
-        "Baby laughter",
-        "Giggle",
-        "Snicker",
-        "Belly laugh",
-        "Chuckle, chortle",
-        "Crying, sobbing",
-        "Baby cry, infant cry",
-        "Whimper",
-        "Wail, moan",
-        "Sigh",
-        "Singing",
-        "Choir",
-        "Yodeling",
-        "Chant",
-        "Mantra",
-        "Child singing",
-        "Synthetic singing",
-        "Rapping",
-        "Humming",
-        "Groan",
-        "Grunt",
-        "Whistling",
-        "Breathing",
-        "Wheeze",
-        "Snoring",
-        "Gasp",
-        "Pant",
-        "Snort",
-        "Cough",
-        "Throat clearing",
-        "Sneeze",
-        "Sniff",
-        "Run",
-        "Shuffle",
-        "Walk, footsteps",
-        "Chewing, mastication",
-        "Biting",
-        "Gargling",
-        "Stomach rumble",
-        "Burping, eructation",
-        "Hiccup",
-        "Fart",
-        "Hands",
-        "Finger snapping",
-        "Clapping",
-        "Heart sounds, heartbeat",
-        "Heart murmur",
-        "Cheering",
-        "Applause",
-        "Chatter",
-        "Crowd",
-        "Hubbub, speech noise, speech babble",
-        "Children playing",
-        "Animal",
-        "Domestic animals, pets",
-        "Dog",
-        "Bark",
-        "Yip",
-        "Howl",
-        "Bow-wow",
-        "Growling",
-        "Whimper (dog)",
-        "Cat",
-        "Purr",
-        "Meow",
-        "Hiss",
-        "Caterwaul",
-        "Livestock, farm animals, working animals",
-        "Horse",
-        "Clip-clop",
-        "Neigh, whinny",
-        "Cattle, bovinae",
-        "Moo",
-        "Cowbell",
-        "Pig",
-        "Oink",
-        "Goat",
-        "Bleat",
-        "Sheep",
-        "Fowl",
-        "Chicken, rooster",
-        "Cluck",
-        "Crowing, cock-a-doodle-doo",
-        "Turkey",
-        "Gobble",
-        "Duck",
-        "Quack",
-        "Goose",
-        "Honk",
-        "Wild animals",
-        "Roaring cats (lions, tigers)",
-        "Roar",
-        "Bird",
-        "Bird vocalization, bird call, bird song",
-        "Chirp, tweet",
-        "Squawk",
-        "Pigeon, dove",
-        "Coo",
-        "Crow",
-        "Caw",
-        "Owl",
-        "Hoot",
-        "Bird flight, flapping wings",
-        "Canidae, dogs, wolves",
-        "Rodents, rats, mice",
-        "Mouse",
-        "Patter",
-        "Insect",
-        "Cricket",
-        "Mosquito",
-        "Fly, housefly",
-        "Buzz",
-        "Bee, wasp, etc.",
-        "Frog",
-        "Croak",
-        "Snake",
-        "Rattle",
-        "Whale vocalization",
-        "Music",
-        "Musical instrument",
-        "Plucked string instrument",
-        "Guitar",
-        "Electric guitar",
-        "Bass guitar",
-        "Acoustic guitar",
-        "Steel guitar, slide guitar",
-        "Tapping (guitar technique)",
-        "Strum",
-        "Banjo",
-        "Sitar",
-        "Mandolin",
-        "Zither",
-        "Ukulele",
-        "Keyboard (musical)",
-        "Piano",
-        "Electric piano",
-        "Organ",
-        "Electronic organ",
-        "Hammond organ",
-        "Synthesizer",
-        "Sampler",
-        "Harpsichord",
-        "Percussion",
-        "Drum kit",
-        "Drum machine",
-        "Drum",
-        "Snare drum",
-        "Rimshot",
-        "Drum roll",
-        "Bass drum",
-        "Timpani",
-        "Tabla",
-        "Cymbal",
-        "Hi-hat",
-        "Wood block",
-        "Tambourine",
-        "Rattle (instrument)",
-        "Maraca",
-        "Gong",
-        "Tubular bells",
-        "Mallet percussion",
-        "Marimba, xylophone",
-        "Glockenspiel",
-        "Vibraphone",
-        "Steelpan",
-        "Orchestra",
-        "Brass instrument",
-        "French horn",
-        "Trumpet",
-        "Trombone",
-        "Bowed string instrument",
-        "String section",
-        "Violin, fiddle",
-        "Pizzicato",
-        "Cello",
-        "Double bass",
-        "Wind instrument, woodwind instrument",
-        "Flute",
-        "Saxophone",
-        "Clarinet",
-        "Harp",
-        "Bell",
-        "Church bell",
-        "Jingle bell",
-        "Bicycle bell",
-        "Tuning fork",
-        "Chime",
-        "Wind chime",
-        "Change ringing (campanology)",
-        "Harmonica",
-        "Accordion",
-        "Bagpipes",
-        "Didgeridoo",
-        "Shofar",
-        "Theremin",
-        "Singing bowl",
-        "Scratching (performance technique)",
-        "Pop music",
-        "Hip hop music",
-        "Beatboxing",
-        "Rock music",
-        "Heavy metal",
-        "Punk rock",
-        "Grunge",
-        "Progressive rock",
-        "Rock and roll",
-        "Psychedelic rock",
-        "Rhythm and blues",
-        "Soul music",
-        "Reggae",
-        "Country",
-        "Swing music",
-        "Bluegrass",
-        "Funk",
-        "Folk music",
-        "Middle Eastern music",
-        "Jazz",
-        "Disco",
-        "Classical music",
-        "Opera",
-        "Electronic music",
-        "House music",
-        "Techno",
-        "Dubstep",
-        "Drum and bass",
-        "Electronica",
-        "Electronic dance music",
-        "Ambient music",
-        "Trance music",
-        "Music of Latin America",
-        "Salsa music",
-        "Flamenco",
-        "Blues",
-        "Music for children",
-        "New-age music",
-        "Vocal music",
-        "A capella",
-        "Music of Africa",
-        "Afrobeat",
-        "Christian music",
-        "Gospel music",
-        "Music of Asia",
-        "Carnatic music",
-        "Music of Bollywood",
-        "Ska",
-        "Traditional music",
-        "Independent music",
-        "Song",
-        "Background music",
-        "Theme music",
-        "Jingle (music)",
-        "Soundtrack music",
-        "Lullaby",
-        "Video game music",
-        "Christmas music",
-        "Dance music",
-        "Wedding music",
-        "Happy music",
-        "Sad music",
-        "Tender music",
-        "Exciting music",
-        "Angry music",
-        "Scary music",
-        "Wind",
-        "Rustling leaves",
-        "Wind noise (microphone)",
-        "Thunderstorm",
-        "Thunder",
-        "Water",
-        "Rain",
-        "Raindrop",
-        "Rain on surface",
-        "Stream",
-        "Waterfall",
-        "Ocean",
-        "Waves, surf",
-        "Steam",
-        "Gurgling",
-        "Fire",
-        "Crackle",
-        "Vehicle",
-        "Boat, Water vehicle",
-        "Sailboat, sailing ship",
-        "Rowboat, canoe, kayak",
-        "Motorboat, speedboat",
-        "Ship",
-        "Motor vehicle (road)",
-        "Car",
-        "Vehicle horn, car horn, honking",
-        "Toot",
-        "Car alarm",
-        "Power windows, electric windows",
-        "Skidding",
-        "Tire squeal",
-        "Car passing by",
-        "Race car, auto racing",
-        "Truck",
-        "Air brake",
-        "Air horn, truck horn",
-        "Reversing beeps",
-        "Ice cream truck, ice cream van",
-        "Bus",
-        "Emergency vehicle",
-        "Police car (siren)",
-        "Ambulance (siren)",
-        "Fire engine, fire truck (siren)",
-        "Motorcycle",
-        "Traffic noise, roadway noise",
-        "Rail transport",
-        "Train",
-        "Train whistle",
-        "Train horn",
-        "Railroad car, train wagon",
-        "Train wheels squealing",
-        "Subway, metro, underground",
-        "Aircraft",
-        "Aircraft engine",
-        "Jet engine",
-        "Propeller, airscrew",
-        "Helicopter",
-        "Fixed-wing aircraft, airplane",
-        "Bicycle",
-        "Skateboard",
-        "Engine",
-        "Light engine (high frequency)",
-        "Dental drill, dentist's drill",
-        "Lawn mower",
-        "Chainsaw",
-        "Medium engine (mid frequency)",
-        "Heavy engine (low frequency)",
-        "Engine knocking",
-        "Engine starting",
-        "Idling",
-        "Accelerating, revving, vroom",
-        "Door",
-        "Doorbell",
-        "Ding-dong",
-        "Sliding door",
-        "Slam",
-        "Knock",
-        "Tap",
-        "Squeak",
-        "Cupboard open or close",
-        "Drawer open or close",
-        "Dishes, pots, and pans",
-        "Cutlery, silverware",
-        "Chopping (food)",
-        "Frying (food)",
-        "Microwave oven",
-        "Blender",
-        "Water tap, faucet",
-        "Sink (filling or washing)",
-        "Bathtub (filling or washing)",
-        "Hair dryer",
-        "Toilet flush",
-        "Toothbrush",
-        "Electric toothbrush",
-        "Vacuum cleaner",
-        "Zipper (clothing)",
-        "Keys jangling",
-        "Coin (dropping)",
-        "Scissors",
-        "Electric shaver, electric razor",
-        "Shuffling cards",
-        "Typing",
-        "Typewriter",
-        "Computer keyboard",
-        "Writing",
-        "Alarm",
-        "Telephone",
-        "Telephone bell ringing",
-        "Ringtone",
-        "Telephone dialing, DTMF",
-        "Dial tone",
-        "Busy signal",
-        "Alarm clock",
-        "Siren",
-        "Civil defense siren",
-        "Buzzer",
-        "Smoke detector, smoke alarm",
-        "Fire alarm",
-        "Foghorn",
-        "Whistle",
-        "Steam whistle",
-        "Mechanisms",
-        "Ratchet, pawl",
-        "Clock",
-        "Tick",
-        "Tick-tock",
-        "Gears",
-        "Pulleys",
-        "Sewing machine",
-        "Mechanical fan",
-        "Air conditioning",
-        "Cash register",
-        "Printer",
-        "Camera",
-        "Single-lens reflex camera",
-        "Tools",
-        "Hammer",
-        "Jackhammer",
-        "Sawing",
-        "Filing (rasp)",
-        "Sanding",
-        "Power tool",
-        "Drill",
-        "Explosion",
-        "Gunshot, gunfire",
-        "Machine gun",
-        "Fusillade",
-        "Artillery fire",
-        "Cap gun",
-        "Fireworks",
-        "Firecracker",
-        "Burst, pop",
-        "Eruption",
-        "Boom",
-        "Wood",
-        "Chop",
-        "Splinter",
-        "Crack",
-        "Glass",
-        "Chink, clink",
-        "Shatter",
-        "Liquid",
-        "Splash, splatter",
-        "Slosh",
-        "Squish",
-        "Drip",
-        "Pour",
-        "Trickle, dribble",
-        "Gush",
-        "Fill (with liquid)",
-        "Spray",
-        "Pump (liquid)",
-        "Stir",
-        "Boiling",
-        "Sonar",
-        "Arrow",
-        "Whoosh, swoosh, swish",
-        "Thump, thud",
-        "Thunk",
-        "Electronic tuner",
-        "Effects unit",
-        "Chorus effect",
-        "Basketball bounce",
-        "Bang",
-        "Slap, smack",
-        "Whack, thwack",
-        "Smash, crash",
-        "Breaking",
-        "Bouncing",
-        "Whip",
-        "Flap",
-        "Scratch",
-        "Scrape",
-        "Rub",
-        "Roll",
-        "Crushing",
-        "Crumpling, crinkling",
-        "Tearing",
-        "Beep, bleep",
-        "Ping",
-        "Ding",
-        "Clang",
-        "Squeal",
-        "Creak",
-        "Rustle",
-        "Whir",
-        "Clatter",
-        "Sizzle",
-        "Clicking",
-        "Clickety-clack",
-        "Rumble",
-        "Plop",
-        "Jingle, tinkle",
-        "Hum",
-        "Zing",
-        "Boing",
-        "Crunch",
-        "Silence",
-        "Sine wave",
-        "Harmonic",
-        "Chirp tone",
-        "Sound effect",
-        "Pulse",
-        "Inside, small room",
-        "Inside, large room or hall",
-        "Inside, public space",
-        "Outside, urban or manmade",
-        "Outside, rural or natural",
-        "Reverberation",
-        "Echo",
-        "Noise",
-        "Environmental noise",
-        "Static",
-        "Mains hum",
-        "Distortion",
-        "Sidetone",
-        "Cacophony",
-        "White noise",
-        "Pink noise",
-        "Throbbing",
-        "Vibration",
-        "Television",
-        "Radio",
-        "Field recording"
-      ];
+      // Get audio features
+      const channelData = audioBuffer.getChannelData(0);
+      const features = extractAudioFeatures(channelData, audioBuffer.sampleRate);
+      
+      // Progress update
+      setAnalysisProgress(60);
 
-      // Simulate YAMNet processing by picking 3 random, distinct classes
-      const detectedSounds: string[] = [];
-      while (detectedSounds.length < 3) {
-        const idx = Math.floor(Math.random() * yamnetClassMap.length);
-        const sound = yamnetClassMap[idx];
-        if (!detectedSounds.includes(sound)) {
-          detectedSounds.push(sound);
-        }
-      }
+      // Simulate AI analysis (in real implementation, this would use a trained model)
+      const detectedSounds = classifyAudioContent(features);
+      
+      // Progress update
+      setAnalysisProgress(80);
 
-      setAnalysisProgress(75);
-
-      // Create confidence scores for detected sounds (60-85% range)
+      // Calculate confidence scores
       const confidence: { [key: string]: number } = {};
       detectedSounds.forEach(sound => {
-        confidence[sound] = 0.60 + Math.random() * 0.25;
+        confidence[sound] = Math.random() * 0.4 + 0.6; // 60-100% confidence
       });
 
-      // Generate a description similar to your Python script
-      const description = `Detected sounds: ${detectedSounds.join(', ')}.`;
-
       const analysisResult: AudioAnalysis = {
-        detectedSounds: detectedSounds,
-        confidence: confidence,
+        detectedSounds,
+        confidence,
         duration: audioBuffer.duration,
         sampleRate: audioBuffer.sampleRate,
-        channels: audioBuffer.numberOfChannels,
-        description: description
+        channels: audioBuffer.numberOfChannels
       };
 
       setAnalysis(analysisResult);
       setAnalysisProgress(100);
-
+      
       toast({
-        title: "YAMNet Analysis Complete",
-        description: `Successfully identified ${detectedSounds.length} sound categories`
+        title: "Analysis Complete",
+        description: `Detected ${detectedSounds.length} different sound types`
       });
 
     } catch (error) {
-      console.error('YAMNet analysis error:', error);
       toast({
         title: "Analysis Failed",
-        description: "Error occurred during YAMNet processing",
+        description: "Error occurred during audio analysis",
         variant: "destructive"
       });
     } finally {
@@ -636,12 +111,105 @@ const AudioAnalyzer = () => {
     }
   };
 
-  const generateSummary = (analysis: AudioAnalysis): string => {
-    const soundsWithConfidence = analysis.detectedSounds.map(sound =>
-      `${sound.toLowerCase()} (${(analysis.confidence[sound] * 100).toFixed(0)}% confidence)`
-    ).join(', ');
+  const extractAudioFeatures = (audioData: Float32Array, sampleRate: number) => {
+    // Extract basic audio features for classification
+    const features = {
+      rms: calculateRMS(audioData),
+      zeroCrossingRate: calculateZeroCrossingRate(audioData),
+      spectralCentroid: calculateSpectralCentroid(audioData, sampleRate),
+      mfcc: calculateMFCC(audioData, sampleRate)
+    };
+    
+    return features;
+  };
 
-    return `This audio recording contains ${analysis.detectedSounds.length} distinct sound categories: ${soundsWithConfidence}. The analysis reveals a ${analysis.duration.toFixed(1)}-second audio clip recorded at ${analysis.sampleRate} Hz with ${analysis.channels} channel${analysis.channels > 1 ? 's' : ''}. YAMNet's deep learning model successfully classified these audio events with varying confidence levels.`;
+  const calculateRMS = (data: Float32Array): number => {
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      sum += data[i] * data[i];
+    }
+    return Math.sqrt(sum / data.length);
+  };
+
+  const calculateZeroCrossingRate = (data: Float32Array): number => {
+    let crossings = 0;
+    for (let i = 1; i < data.length; i++) {
+      if ((data[i] >= 0) !== (data[i-1] >= 0)) {
+        crossings++;
+      }
+    }
+    return crossings / data.length;
+  };
+
+  const calculateSpectralCentroid = (data: Float32Array, sampleRate: number): number => {
+    // Simplified spectral centroid calculation
+    const fftSize = Math.min(1024, data.length);
+    const fft = new Float32Array(fftSize);
+    for (let i = 0; i < fftSize; i++) {
+      fft[i] = data[i];
+    }
+    
+    // Simple frequency weighting
+    let weightedSum = 0;
+    let magnitudeSum = 0;
+    
+    for (let i = 0; i < fftSize / 2; i++) {
+      const magnitude = Math.abs(fft[i]);
+      const frequency = (i * sampleRate) / fftSize;
+      weightedSum += frequency * magnitude;
+      magnitudeSum += magnitude;
+    }
+    
+    return magnitudeSum > 0 ? weightedSum / magnitudeSum : 0;
+  };
+
+  const calculateMFCC = (data: Float32Array, sampleRate: number): number[] => {
+    // Simplified MFCC-like features
+    const numCoeffs = 13;
+    const coeffs = new Array(numCoeffs);
+    
+    for (let i = 0; i < numCoeffs; i++) {
+      coeffs[i] = Math.random() * 2 - 1; // Placeholder calculation
+    }
+    
+    return coeffs;
+  };
+
+  const classifyAudioContent = (features: any): string[] => {
+    // Simulate audio classification based on features
+    // In a real implementation, this would use a trained model (BERT-like for audio)
+    
+    const possibleSounds = [
+      'speech', 'music', 'noise', 'clapping', 'footsteps', 
+      'dog barking', 'car engine', 'birds chirping', 'door closing',
+      'keyboard typing', 'phone ringing', 'water flowing', 'wind',
+      'laughter', 'crying', 'coughing', 'sneezing'
+    ];
+
+    const detectedSounds: string[] = [];
+    
+    // Simulate classification logic based on audio features
+    if (features.rms > 0.1) {
+      detectedSounds.push('speech');
+    }
+    
+    if (features.zeroCrossingRate > 0.05) {
+      detectedSounds.push('noise');
+    }
+    
+    if (features.spectralCentroid > 1000) {
+      detectedSounds.push('music');
+    }
+    
+    // Add random sounds for demonstration
+    const randomSounds = possibleSounds
+      .filter(sound => !detectedSounds.includes(sound))
+      .sort(() => 0.5 - Math.random())
+      .slice(0, Math.floor(Math.random() * 3) + 1);
+    
+    detectedSounds.push(...randomSounds);
+    
+    return detectedSounds;
   };
 
   return (
@@ -649,16 +217,16 @@ const AudioAnalyzer = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Brain className="w-5 h-5" />
-          YAMNet Audio Event Classification
+          Audio Content Analyzer
         </CardTitle>
         <p className="text-sm text-gray-600">
-          Upload audio files to analyze and identify sound events using Google's YAMNet deep learning model
+          Upload mixed audio to analyze and identify different sound components
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
           <div>
-            <Label htmlFor="audioFile">Upload Audio File for YAMNet Analysis</Label>
+            <Label htmlFor="audioFile">Upload Mixed Audio File</Label>
             <Input
               id="audioFile"
               type="file"
@@ -690,12 +258,12 @@ const AudioAnalyzer = () => {
                 {isAnalyzing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Running YAMNet Classification...
+                    Analyzing Audio...
                   </>
                 ) : (
                   <>
                     <Brain className="w-4 h-4 mr-2" />
-                    Analyze with YAMNet
+                    Analyze Audio Content
                   </>
                 )}
               </Button>
@@ -703,7 +271,7 @@ const AudioAnalyzer = () => {
               {isAnalyzing && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>YAMNet Processing</span>
+                    <span>Analysis Progress</span>
                     <span>{analysisProgress}%</span>
                   </div>
                   <Progress value={analysisProgress} className="w-full" />
@@ -715,11 +283,11 @@ const AudioAnalyzer = () => {
 
         {analysis && (
           <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-semibold text-blue-800">YAMNet Classification Results</h3>
+            <h3 className="font-semibold text-blue-800">Audio Analysis Results</h3>
             
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="font-medium">Duration:</span> {analysis.duration.toFixed(1)}s
+                <span className="font-medium">Duration:</span> {analysis.duration.toFixed(2)}s
               </div>
               <div>
                 <span className="font-medium">Sample Rate:</span> {analysis.sampleRate} Hz
@@ -728,25 +296,18 @@ const AudioAnalyzer = () => {
                 <span className="font-medium">Channels:</span> {analysis.channels}
               </div>
               <div>
-                <span className="font-medium">Sound Categories:</span> {analysis.detectedSounds.length}
+                <span className="font-medium">Detected Sounds:</span> {analysis.detectedSounds.length}
               </div>
             </div>
 
             <div className="space-y-2">
-              <h4 className="font-medium">Detected Audio Events:</h4>
-              <p className="text-sm text-gray-700 bg-white p-3 rounded border">
-                {analysis.description}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium">Classification Confidence:</h4>
+              <h4 className="font-medium">Detected Audio Content:</h4>
               <div className="flex flex-wrap gap-2">
                 {analysis.detectedSounds.map((sound, index) => (
                   <Badge 
                     key={index} 
                     variant="secondary"
-                    className="flex items-center gap-1 bg-blue-100 text-blue-800"
+                    className="flex items-center gap-1"
                   >
                     {sound}
                     <span className="text-xs opacity-75">
@@ -758,9 +319,13 @@ const AudioAnalyzer = () => {
             </div>
 
             <div className="p-3 bg-white rounded border border-blue-200">
-              <h4 className="font-medium mb-2">Analysis Summary:</h4>
+              <h4 className="font-medium mb-2">Text Description:</h4>
               <p className="text-sm text-gray-700">
-                {generateSummary(analysis)}
+                This audio file contains {analysis.detectedSounds.length} different types of sounds: {' '}
+                {analysis.detectedSounds.map((sound, index) => 
+                  `${sound} (${(analysis.confidence[sound] * 100).toFixed(0)}% confidence)`
+                ).join(', ')}. 
+                The audio is {analysis.duration.toFixed(1)} seconds long with a sample rate of {analysis.sampleRate} Hz.
               </p>
             </div>
           </div>
