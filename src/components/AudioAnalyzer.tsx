@@ -103,7 +103,7 @@ export default function AudioAnalyzer() {
   };
 
   return (
-    <div>
+    <div style={{ padding: 20 }}>
       <h2>Audio Analyzer</h2>
       <input
         type="file"
