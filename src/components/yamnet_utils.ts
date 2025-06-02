@@ -529,20 +529,21 @@ export const CLASS_NAMES = [
 ] as const;
 
 export type YamnetClassName = typeof CLASS_NAMES[number];
+// export type YamnetClassName = typeof CLASS_NAMES[number];
 
-export interface ClassificationResult {
-  index: number;
-  className: YamnetClassName;
-  score: number;
-}
+// export interface ClassificationResult {
+//   index: number;
+//   className: YamnetClassName;
+//   score: number;
+// }
 
-export const getTopKClasses = (scores: Float32Array | number[], k: number): ClassificationResult[] => {
-  return Array.from(scores)
-    .map((score, index) => ({
-      index,
-      className: CLASS_NAMES[index] as YamnetClassName,
-      score
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, k);
-};
+// export const getTopKClasses = (scores: Float32Array | number[], k: number): ClassificationResult[] => {
+//   return Array.from(scores)
+//     .map((score, index) => ({
+//       index,
+//       className: CLASS_NAMES[index] as YamnetClassName,
+//       score
+//     }))
+//     .sort((a, b) => b.score - a.score)
+//     .slice(0, k);
+// };
